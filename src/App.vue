@@ -1,18 +1,37 @@
 <script setup lang="ts">
-import { computed, watch, ref, onMounted } from 'vue'
+import { computed, watch, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppNavigation from './components/AppNavigation.vue'
 import { useProjectsStore } from '@/stores/projects.ts'
 
+import desktopVideo from '@/assets/video/desktop.mp4'
+import mobileVideo from '@/assets/video/mobile.mp4'
+
 const route = useRoute()
 const VIDEO_ROUTES = ['home', 'about']
+
+const MOBILE_BREAKPOINT = 768
+const isMobile = ref(false)
+const bgVideoRef = ref<HTMLVideoElement | null>(null)
+const projectsStore = useProjectsStore()
+
+const isVideoLoaded = ref(false)
+
+const handleVideoLoad = () => {
+  isVideoLoaded.value = true
+}
+
+const updateMediaType = () => {
+  isMobile.value = window.innerWidth <= MOBILE_BREAKPOINT
+}
+
+const currentVideoSrc = computed(() => {
+  return isMobile.value ? mobileVideo : desktopVideo
+})
 
 const shouldShowVideo = computed(() => {
   return route.name && VIDEO_ROUTES.includes(route.name as string)
 })
-
-const bgVideoRef = ref<HTMLVideoElement | null>(null)
-const projectsStore = useProjectsStore()
 
 let pauseTimeout: number | undefined
 
@@ -40,17 +59,47 @@ watch(
   { flush: 'post' },
 )
 
+watch(currentVideoSrc, () => {
+  isVideoLoaded.value = false
+  if (bgVideoRef.value) {
+    bgVideoRef.value.load()
+    if (shouldShowVideo.value) {
+      bgVideoRef.value.play().catch(() => {})
+    }
+  }
+})
+
 onMounted(() => {
   projectsStore.init()
+  updateMediaType()
+  window.addEventListener('resize', updateMediaType)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateMediaType)
 })
 </script>
 
 <template>
   <div class="global-background">
-    <div class="bg-layer video-layer" :class="{ visible: shouldShowVideo }">
-      <video ref="bgVideoRef" autoplay muted loop playsinline class="bg-video">
-        <source src="@/assets/video/bg-loop.mp4" type="video/mp4" />
-      </video>
+    <Transition name="fade">
+      <div v-if="shouldShowVideo && !isVideoLoaded" class="video-loader">
+        <div class="spinner"></div>
+      </div>
+    </Transition>
+
+    <div class="bg-layer video-layer" :class="{ visible: shouldShowVideo && isVideoLoaded }">
+      <video
+        ref="bgVideoRef"
+        :src="currentVideoSrc"
+        :key="currentVideoSrc"
+        autoplay
+        muted
+        loop
+        playsinline
+        class="bg-video"
+        @canplay="handleVideoLoad"
+      ></video>
       <div class="video-overlay"></div>
     </div>
   </div>
@@ -87,11 +136,36 @@ body {
   contain: strict;
 }
 
+/* --- LOADER STYLES --- */
+.video-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--main-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .bg-layer {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 0.8s ease;
+  transition: opacity 1s ease;
   pointer-events: none;
   visibility: hidden;
 }
@@ -119,6 +193,15 @@ body {
 }
 .page-fade-enter-from,
 .page-fade-leave-to {
+  opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
 }
 </style>

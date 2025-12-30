@@ -56,8 +56,8 @@ const about = computed(
               INSTAGRAM <span class="arrow">→</span>
             </a>
 
-            <a v-if="about.youtube" :href="about.youtube" target="_blank" class="social-link">
-              YOUTUBE <span class="arrow">↗</span>
+            <a v-if="about.youtube" :href="about.youtube" target="_blank" class="text-link">
+              YOUTUBE <span class="arrow">→</span>
             </a>
           </div>
         </section>
