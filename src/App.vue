@@ -5,24 +5,35 @@ import AppNavigation from './components/AppNavigation.vue'
 import { useProjectsStore } from '@/stores/projects.ts'
 
 const route = useRoute()
-const isHome = computed(() => route.name === 'home')
+const VIDEO_ROUTES = ['home', 'about']
 
-// Ссылка на видео элемент
+const shouldShowVideo = computed(() => {
+  return route.name && VIDEO_ROUTES.includes(route.name as string)
+})
+
 const bgVideoRef = ref<HTMLVideoElement | null>(null)
 const projectsStore = useProjectsStore()
 
-// Следим за маршрутом:
-// Если Home -> Play
-// Если не Home -> Pause (экономим ресурсы)
+let pauseTimeout: number | undefined
+
 watch(
-  isHome,
-  (visible) => {
-    if (visible) {
+  () => projectsStore.mainAccent,
+  (newColor) => {
+    document.documentElement.style.setProperty('--main-accent', newColor)
+  },
+  { immediate: true },
+)
+
+watch(
+  shouldShowVideo,
+  (isActive) => {
+    clearTimeout(pauseTimeout)
+
+    if (isActive) {
       bgVideoRef.value?.play().catch(() => {})
     } else {
-      // Небольшая задержка, чтобы видео не замерло до окончания анимации opacity
-      setTimeout(() => {
-        if (!isHome.value) bgVideoRef.value?.pause()
+      pauseTimeout = setTimeout(() => {
+        bgVideoRef.value?.pause()
       }, 800)
     }
   },
@@ -36,7 +47,7 @@ onMounted(() => {
 
 <template>
   <div class="global-background">
-    <div class="bg-layer video-layer" :class="{ visible: isHome }">
+    <div class="bg-layer video-layer" :class="{ visible: shouldShowVideo }">
       <video ref="bgVideoRef" autoplay muted loop playsinline class="bg-video">
         <source src="@/assets/video/bg-loop.mp4" type="video/mp4" />
       </video>
@@ -54,7 +65,10 @@ onMounted(() => {
 </template>
 
 <style>
-/* Сброс полосы прокрутки и отступов */
+:root {
+  --main-accent: #f0d0d3;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -70,7 +84,6 @@ body {
   height: 100vh;
   z-index: -1;
   background-color: #000;
-  /* Оптимизация перерисовки */
   contain: strict;
 }
 
@@ -80,7 +93,6 @@ body {
   opacity: 0;
   transition: opacity 0.8s ease;
   pointer-events: none;
-  /* Убираем из композиции, когда невидимо */
   visibility: hidden;
 }
 
@@ -101,7 +113,6 @@ body {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Анимация страниц */
 .page-fade-enter-active,
 .page-fade-leave-active {
   transition: opacity 0.6s ease;

@@ -1,30 +1,36 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
-import VimeoPlayer from '@/components/VimeoPlayer.vue'
+
+import { useYoutube } from '@/composables/useYoutube.ts'
+import YouTubePlayer from '@/components/YouTubePlayer.vue'
+import { colorService } from '@/services/colorService'
 
 const route = useRoute()
 const store = useProjectsStore()
 
+const accentColor = ref('#f3d0d3')
 const projectId = computed(() => Number(route.params.id))
 const project = computed(() => store.getProjectById(projectId.value))
 
-// HD Фон
-const backgroundSrc = computed(() => {
+const youtubeId = computed(() => project.value?.youtubeId)
+const { data: videoData } = useYoutube(youtubeId)
+
+const background_source = computed(() => {
   if (!project.value) return ''
-  if (project.value.vimeoId) {
-    const vimeoThumb = store.getVimeoThumbnail(project.value.vimeoId, 'hd')
-    if (vimeoThumb) return vimeoThumb
+  if (videoData.value?.thumbnail_maxres_url) {
+    return videoData.value.thumbnail_maxres_url
   }
   return project.value.thumbnailUrl
 })
 
-// Загрузка данных
 watch(
-  () => project.value?.vimeoId,
-  (newId) => {
-    if (newId) store.loadVimeoData(newId)
+  background_source,
+  async (newUrl) => {
+    const color = newUrl ? await colorService.extractDominantColor(newUrl) : '#f3d0d3'
+    accentColor.value = color
+    store.setAccentColor(color)
   },
   { immediate: true },
 )
@@ -35,9 +41,9 @@ watch(
     <div class="bg-wrapper">
       <transition name="fade-slow">
         <img
-          v-if="backgroundSrc"
-          :key="backgroundSrc"
-          :src="backgroundSrc"
+          v-if="background_source"
+          :key="background_source"
+          :src="background_source"
           alt=""
           class="bg-image-hd"
         />
@@ -46,7 +52,7 @@ watch(
     </div>
 
     <div class="split-layout">
-      <div class="info-section">
+      <div class="left-column">
         <div class="text-content">
           <span class="client-name">{{ project.client }}</span>
           <h1 class="project-title">{{ project.title }}</h1>
@@ -55,19 +61,19 @@ watch(
 
         <div class="meta-footer">
           <a
-            v-if="project.vimeoId"
-            :href="`https://vimeo.com/${project.vimeoId}`"
+            v-if="project.youtubeId"
+            :href="`https://www.youtube.com/watch?v=${project.youtubeId}`"
             target="_blank"
-            class="vimeo-link"
+            class="video-link"
           >
-            Watch on Vimeo <span class="arrow">→</span>
+            Watch on YouTube <span class="arrow">→</span>
           </a>
         </div>
       </div>
 
       <div class="video-section">
-        <div class="player-wrapper" v-if="project.vimeoId">
-          <VimeoPlayer :videoId="project.vimeoId" />
+        <div class="player-wrapper" v-if="project.youtubeId">
+          <YouTubePlayer :videoId="project.youtubeId" />
         </div>
       </div>
     </div>
@@ -77,31 +83,27 @@ watch(
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;700&display=swap');
 
-/* --- LAYOUT --- */
 .project-detail-page {
-  position: fixed; /* Фиксируем страницу, убираем скролл */
+  position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
   background: #000;
-  overflow: hidden; /* Критично для производительности */
+  overflow: hidden;
 }
 
-/* --- ФОН --- */
 .bg-wrapper {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.3; /* Затемняем фон сильнее, чтобы акцент был на видео */
+  opacity: 0.3;
 }
-
 .bg-image-hd {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-
 .bg-overlay {
   position: absolute;
   inset: 0;
@@ -117,33 +119,28 @@ watch(
   opacity: 0;
 }
 
-/* --- GRID LAYOUT --- */
 .split-layout {
   position: relative;
   z-index: 10;
   width: 100%;
   height: 100%;
   display: grid;
-  /* Левая колонка (текст) 35%, Правая (видео) остальное.
-     minmax(400px, 1fr) гарантирует читаемость текста. */
   grid-template-columns: minmax(400px, 35%) 1fr;
-  padding: 0 4rem; /* Отступы от краев экрана */
-  align-items: center; /* Центрируем по вертикали */
+  padding: 0 4rem;
+  align-items: center;
   column-gap: 4rem;
 }
 
-/* --- INFO SECTION --- */
-.info-section {
+.left-column {
   display: flex;
   flex-direction: column;
   justify-content: center;
   height: 100%;
-  /* Если текста много, он может скроллиться внутри колонки, но не вся страница */
   overflow-y: auto;
   padding-right: 2rem;
-  scrollbar-width: none; /* Скрываем скроллбар */
+  scrollbar-width: none;
 }
-.info-section::-webkit-scrollbar {
+.left-column::-webkit-scrollbar {
   display: none;
 }
 
@@ -159,19 +156,20 @@ watch(
 
 .project-title {
   font-family: 'Archivo Black', sans-serif;
-  /* Уменьшили шрифт, чтобы влезало */
   font-size: clamp(2rem, 3.5vw, 4rem);
   text-transform: uppercase;
   line-height: 0.95;
-  color: #f3d0d3;
+  color: v-bind(accentColor);
+
   margin: 0 0 1.5rem 0;
   transform: scaleX(1.05);
   transform-origin: left;
+  transition: color 1s ease;
 }
 
 .project-description {
   font-family: 'Inter', sans-serif;
-  font-size: 1rem; /* Компактный текст */
+  font-size: 1rem;
   line-height: 1.5;
   color: #d1d1d1;
   max-width: 90%;
@@ -181,7 +179,7 @@ watch(
   margin-top: 2rem;
 }
 
-.vimeo-link {
+.video-link {
   color: #fff;
   text-decoration: none;
   font-size: 0.9rem;
@@ -189,14 +187,13 @@ watch(
   opacity: 0.7;
   transition: opacity 0.3s;
 }
-.vimeo-link:hover {
+.video-link:hover {
   opacity: 1;
 }
 .arrow {
   margin-left: 5px;
 }
 
-/* --- VIDEO SECTION --- */
 .video-section {
   width: 100%;
   height: 100%;
@@ -214,38 +211,53 @@ watch(
   overflow: hidden;
 }
 
-/* --- RESPONSIVE (MOBILE) --- */
 @media (max-width: 1024px) {
   .project-detail-page {
-    position: relative; /* Возвращаем скролл на планшетах/телефонах */
+    position: relative;
     height: auto;
     overflow-y: auto;
     overflow-x: hidden;
   }
 
   .split-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    padding: 100px 20px 40px 20px; /* Отступ сверху под меню */
-    gap: 2rem;
+    display: flex;
+    flex-direction: column;
+    padding: 160px 20px 60px 20px;
+    gap: 3rem;
     height: auto;
   }
 
-  /* Меняем порядок: Видео сверху, Текст снизу */
-  .video-section {
-    order: 1;
+  .left-column {
+    display: contents;
   }
-  .info-section {
+
+  .text-content {
+    order: 1;
+    width: 100%;
+  }
+
+  .video-section {
     order: 2;
-    padding-right: 0;
+    height: auto;
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .meta-footer {
+    order: 3;
+    margin-top: 1rem;
+    width: 100%;
   }
 
   .player-wrapper {
-    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
   .project-title {
     font-size: 2.5rem;
+  }
+  .project-description {
+    max-width: 100%;
   }
 }
 </style>

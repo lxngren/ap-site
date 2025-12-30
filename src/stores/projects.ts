@@ -1,64 +1,60 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { gistService } from '@/services/gistService'
-import { vimeoService, type VimeoData } from '@/services/vimeoService'
-import type { Project } from '@/types'
+import type { Project, AboutData, GlobalSettings } from '@/types'
 
 export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
-  const loading = ref(false)
-  const initialized = ref(false)
+  const about = ref<AboutData | null>(null)
 
-  // Кэш для Vimeo данных (чтобы не спамить API при навигации)
-  const vimeoCache = ref<Record<string, VimeoData>>({})
-
-  // Геттер по ID
-  const getProjectById = computed(() => {
-    return (id: number) => projects.value.find((p) => p.id === id)
+  const globalSettings = ref<GlobalSettings>({
+    accentMode: 'custom',
+    customColor: '#f0d0d3',
   })
 
-  // Инициализация (Загрузка списка проектов из Gist)
+  const currentAccentColor = ref<string>('#f3d0d3')
+  const heroAccentColor = ref<string | null>(null)
+
   async function init() {
-    if (initialized.value) return
-    loading.value = true
     try {
-      const data = await gistService.fetchConfig()
-      if (data && Array.isArray(data.projects)) {
-        projects.value = data.projects
+      const config = await gistService.fetchConfig()
+      projects.value = config.projects || []
+      about.value = config.about || null
+      if (config.global) {
+        globalSettings.value = config.global
       }
-      initialized.value = true
     } catch (e) {
-      console.error('Failed to load projects list', e)
-      // Здесь можно загрузить локальный фоллбэк, если Gist недоступен
-    } finally {
-      loading.value = false
+      console.error('Failed to load content', e)
     }
   }
 
-  // Загрузка метаданных конкретного видео с Vimeo
-  async function loadVimeoData(vimeoId: string) {
-    if (!vimeoId || vimeoCache.value[vimeoId]) return
-    // ... твоя старая логика загрузки ...
-    try {
-      const data = await vimeoService.fetchVideoData(vimeoId)
-      vimeoCache.value = { ...vimeoCache.value, [vimeoId]: data }
-    } catch (e) {
-      console.warn(e)
-    }
+  const getProjectById = (id: number) => projects.value.find((p) => p.id === id)
+
+  const setAccentColor = (color: string) => {
+    currentAccentColor.value = color
   }
 
-  function getVimeoThumbnail(vimeoId: string, size: 'hd' | 'small' = 'hd') {
-    const data = vimeoCache.value[vimeoId]
-    if (!data) return undefined
-    return size === 'small' ? data.thumbnail_small : data.thumbnail_hd || data.thumbnail_large
+  const setHeroAccentColor = (color: string) => {
+    heroAccentColor.value = color
   }
+
+  const mainAccent = computed(() => {
+    if (globalSettings.value.accentMode === 'hero' && heroAccentColor.value) {
+      return heroAccentColor.value
+    }
+    return globalSettings.value.customColor
+  })
 
   return {
     projects,
-    loading,
+    about,
+    globalSettings, // Экспорт для админки
+    mainAccent, // Экспорт готового цвета
+    currentAccentColor,
+    heroAccentColor,
     init,
     getProjectById,
-    loadVimeoData,
-    getVimeoThumbnail,
+    setAccentColor,
+    setHeroAccentColor,
   }
 })

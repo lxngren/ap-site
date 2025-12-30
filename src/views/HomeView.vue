@@ -1,6 +1,4 @@
-<script setup lang="ts">
-// Скрипт можно оставить пустым или убрать ref на видео, так как оно удалено
-</script>
+<script setup lang="ts"></script>
 
 <template>
   <main class="landing-container">
@@ -8,7 +6,7 @@
       <div class="spacer"></div>
 
       <footer class="bottom-footer">
-        <button class="showreel-btn">showreel</button>
+        <button class="showreel-button">showreel</button>
       </footer>
     </div>
   </main>
@@ -20,8 +18,6 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  /* Убираем черный фон, чтобы видеть видео из App.vue,
-     либо оставляем прозрачным */
   background-color: transparent;
   font-family: 'GoodSans', sans-serif;
 }
@@ -36,14 +32,13 @@
   padding: 1.5rem 1rem;
 }
 
-/* ... Твои стили кнопки footer ... */
 .bottom-footer {
   display: flex;
   justify-content: center;
   padding-bottom: 3rem;
 }
 
-.showreel-btn {
+.showreel-button {
   background: none;
   border: none;
   cursor: pointer;
@@ -59,31 +54,15 @@
   transition: all 0.4s cubic-bezier(0, 0.83, 0.64, 1);
 }
 
-.showreel-btn::after {
-  content: '';
-  display: block;
-  width: 100%;
-  height: 1px;
-  background-color: #fff;
-  margin-top: 10px;
-  border-radius: 4px;
-  transform: scaleX(0.2);
-  transform-origin: center;
-  transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-}
-
-.showreel-btn:hover {
+.showreel-button:hover {
   letter-spacing: 0.02em;
   transform: scale(1.3);
-}
-
-.showreel-btn:hover::after {
-  transform: scaleX(1);
+  color: var(--main-accent);
 }
 
 @media (max-width: 768px) {
-  .showreel-btn {
-    font-size: 3rem;
+  .showreel-button {
+    font-size: 1.2rem;
   }
 }
 </style>

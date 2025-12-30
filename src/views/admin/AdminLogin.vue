@@ -23,12 +23,12 @@ const handleLogin = async () => {
           v-model="token"
           type="password"
           placeholder="GITHUB TOKEN"
-          class="brutal-input"
+          class="input"
           @keyup.enter="handleLogin"
         />
       </div>
       <div v-if="store.error" class="error-msg">{{ store.error }}</div>
-      <button @click="handleLogin" class="brutal-btn" :disabled="store.loading">
+      <button @click="handleLogin" class="button" :disabled="store.loading">
         {{ store.loading ? 'VERIFYING...' : 'ENTER' }}
       </button>
     </div>
@@ -58,7 +58,7 @@ const handleLogin = async () => {
   margin-bottom: 2rem;
   letter-spacing: -1px;
 }
-.brutal-input {
+.input {
   width: 100%;
   background: #000;
   border: 1px solid #555;
@@ -69,10 +69,10 @@ const handleLogin = async () => {
   margin-bottom: 1rem;
   outline: none;
 }
-.brutal-input:focus {
+.input:focus {
   border-color: #fff;
 }
-.brutal-btn {
+.button {
   width: 100%;
   background: #fff;
   color: #000;
@@ -83,10 +83,10 @@ const handleLogin = async () => {
   cursor: pointer;
   transition: all 0.2s;
 }
-.brutal-btn:hover {
+.button:hover {
   background: #ccc;
 }
-.brutal-btn:disabled {
+.button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
