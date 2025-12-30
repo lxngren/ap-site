@@ -1,0 +1,35 @@
+/* Добавляем в самое начало файла */
+@font-face {
+  font-family: 'GoodSans';
+  src: url('@/assets/fonts/GoodSans-Regular.woff2') format('woff2'); /* Убедись, что имя файла совпадает */
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-white: #ffffff;
+  --color-black: #080808;
+  /* Можно вынести шрифт в переменную */
+  --font-main: 'GoodSans', sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-black);
+  color: var(--color-white);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  /* Применяем шрифт глобально, если нужно */
+  font-family: var(--font-main), sans-serif;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
