@@ -15,7 +15,7 @@ const isAboutPanelOpen = ref(false)
 const isEditing = ref(false)
 const isColorPickerOpen = ref(false)
 
-const CATEGORIES = ['All', '3D / VFX', 'Motion Graphics']
+const CATEGORIES = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design']
 
 const initialFormState = {
   id: 0,
