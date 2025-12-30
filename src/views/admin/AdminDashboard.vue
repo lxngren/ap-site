@@ -3,8 +3,9 @@ import { computed, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useAdminStore } from '@/stores/admin'
 import { useProjectsStore } from '@/stores/projects'
-import { colorService } from '@/services/colorService' // Импортируем сервис цвета
+import { colorService } from '@/services/colorService'
 import type { AboutData, Project } from '@/types'
+import router from '@/router'
 
 const store = useAdminStore()
 const projectsStore = useProjectsStore()
@@ -14,7 +15,7 @@ const isAboutPanelOpen = ref(false)
 const isEditing = ref(false)
 const isColorPickerOpen = ref(false)
 
-const CATEGORIES = ['All', '3D / VFX']
+const CATEGORIES = ['All', '3D / VFX', 'Motion Graphics']
 
 const initialFormState = {
   id: 0,
@@ -40,7 +41,7 @@ const aboutFormData = ref<AboutData>({
 const skillsString = ref('')
 
 const goToSite = () => {
-  window.location.href = '/projects'
+  router.push('/projects')
 }
 
 const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
@@ -77,7 +78,6 @@ const uiAccentColor = computed(() => {
 const toggleColorPicker = () => {
   isColorPickerOpen.value = !isColorPickerOpen.value
 }
-// -----------------------
 
 const openNewProject = () => {
   formData.value = { ...initialFormState } as Project

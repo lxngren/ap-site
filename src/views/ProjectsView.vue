@@ -21,7 +21,7 @@ const accentColor = ref<string>(store.heroAccentColor || DEFAULT_ACCENT)
 const projectColors = ref<Record<number, string>>({})
 const activeFilter = ref<string>('All')
 
-const filters = ['All', '3D / VFX'] as const
+const filters = ['All', '3D / VFX', 'Motion Graphics'] as const
 
 const projects = computed(() => store.projects)
 const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
