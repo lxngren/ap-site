@@ -17,7 +17,7 @@ const isPageLoading = ref<boolean>(!hasInitialData)
 const loadedImageIds = ref<Set<number>>(new Set())
 const isHeroImageLoaded = ref<boolean>(false)
 
-const accentColor = ref<string>(DEFAULT_ACCENT)
+const accentColor = ref<string>(store.heroAccentColor || DEFAULT_ACCENT)
 const projectColors = ref<Record<number, string>>({})
 const activeFilter = ref<string>('All')
 
@@ -46,15 +46,13 @@ const handleHeroLoad = (): void => {
   isHeroImageLoaded.value = true
 }
 
-// --- COLOR LOGIC ---
 watch(
-  () => heroProject.value?.thumbnailUrl,
-  async (newUrl) => {
-    const color = newUrl ? await colorService.extractDominantColor(newUrl) : DEFAULT_ACCENT
-
-    accentColor.value = color
-    store.setAccentColor(color) // Ставим текущий активный цвет
-    store.setHeroAccentColor(color) // NEW: Сохраняем "на вечно" для быстрого возврата
+  () => store.heroAccentColor,
+  (newColor) => {
+    if (newColor) {
+      accentColor.value = newColor
+      store.setAccentColor(newColor)
+    }
   },
   { immediate: true },
 )

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { gistService } from '@/services/gistService'
 import type { Project, AboutData, GlobalSettings } from '@/types'
+import { colorService } from '@/services/colorService.ts'
 
 export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
@@ -22,6 +23,14 @@ export const useProjectsStore = defineStore('projects', () => {
       about.value = config.about || null
       if (config.global) {
         globalSettings.value = config.global
+      }
+      const heroProject = projects.value.find((p) => p.isFeatured)
+      if (heroProject && heroProject.thumbnailUrl) {
+        const color = await colorService.extractDominantColor(heroProject.thumbnailUrl)
+
+        setHeroAccentColor(color)
+      } else {
+        setHeroAccentColor('#f3d0d3')
       }
     } catch (e) {
       console.error('Failed to load content', e)
