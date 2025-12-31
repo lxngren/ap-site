@@ -1,52 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, type Ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { colorService } from '@/services/colorService'
-import type { Project } from '@/types'
-
-const filters = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design'] as const
-type FilterType = (typeof filters)[number]
-
-class ProjectsDisplayManager {
-  readonly #store: ReturnType<typeof useProjectsStore>
-  readonly #isPageLoading: Ref<boolean>
-  readonly #projectColors: Ref<Record<number, string>>
-  readonly #fadeDelay: number
-
-  constructor(
-    store: ReturnType<typeof useProjectsStore>,
-    isPageLoading: Ref<boolean>,
-    projectColors: Ref<Record<number, string>>,
-    fadeDelay: number,
-  ) {
-    this.#store = store
-    this.#isPageLoading = isPageLoading
-    this.#projectColors = projectColors
-    this.#fadeDelay = fadeDelay
-  }
-
-  public async initialize(): Promise<void> {
-    try {
-      await Promise.allSettled([
-        this.#store.init(),
-        new Promise((resolve) => setTimeout(resolve, this.#fadeDelay)),
-      ])
-    } finally {
-      this.#isPageLoading.value = false
-    }
-  }
-
-  public async updateColors(projects: Project[]): Promise<void> {
-    const tasks = projects
-      .filter((p) => p.thumbnailUrl && !this.#projectColors.value[p.id])
-      .map(async (p) => {
-        this.#projectColors.value[p.id] = await colorService.extractDominantColor(p.thumbnailUrl)
-      })
-
-    await Promise.allSettled(tasks)
-  }
-}
 
 const FADE_DELAY_MS = 800
 const IMAGE_FADE_DELAY_MS = 100
@@ -55,53 +11,80 @@ const DEFAULT_ACCENT = '#f3d0d3'
 const store = useProjectsStore()
 const router = useRouter()
 
-const isPageLoading = ref<boolean>(store.projects.length === 0)
+const hasInitialData = store.projects.length > 0
+const isPageLoading = ref<boolean>(!hasInitialData)
+
 const loadedImageIds = ref<Set<number>>(new Set())
 const isHeroImageLoaded = ref<boolean>(false)
+
+const accentColor = ref<string>(store.heroAccentColor || DEFAULT_ACCENT)
 const projectColors = ref<Record<number, string>>({})
-const activeFilter = ref<FilterType>('All')
+const activeFilter = ref<string>('All')
 
-const manager = new ProjectsDisplayManager(store, isPageLoading, projectColors, FADE_DELAY_MS)
+const filters = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design'] as const
 
-const projects = computed<Project[]>(() => store.projects)
-const heroProject = computed<Project | undefined>(() => store.projects.find((p) => p.isFeatured))
+const projects = computed(() => store.projects)
+const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
 
-const heroImageUrl = computed<string>(() => {
-  const project = heroProject.value
-  if (!project) return ''
-  return project.heroThumbnailUrl || project.thumbnailUrl
+const filteredProjects = computed(() => {
+  const list = projects.value
+  if (activeFilter.value === 'All') return list
+  return list.filter((p) => p.category === activeFilter.value)
 })
 
-const accentColor = computed<string>(() => store.heroAccentColor || DEFAULT_ACCENT)
-
-const filteredProjects = computed<Project[]>(() => {
-  if (activeFilter.value === 'All') return projects.value
-  return projects.value.filter((p) => p.category === activeFilter.value)
+const heroImageUrl = computed(() => {
+  if (!heroProject.value) return ''
+  return heroProject.value.heroThumbnailUrl || heroProject.value.thumbnailUrl
 })
+
+const goToProject = (id: number): void => {
+  router.push({ name: 'project-detail', params: { id } })
+}
 
 const handleImageLoad = (id: number): void => {
-  setTimeout(() => loadedImageIds.value.add(id), IMAGE_FADE_DELAY_MS)
+  setTimeout(() => {
+    loadedImageIds.value.add(id)
+  }, IMAGE_FADE_DELAY_MS)
 }
 
 const handleHeroLoad = (): void => {
   isHeroImageLoaded.value = true
 }
 
-const goToProject = (id: number): void => {
-  router.push({ name: 'project-detail', params: { id } })
-}
-
 watch(
-  projects,
-  (list) => {
-    if (list.length > 0) manager.updateColors(list)
+  () => store.heroAccentColor,
+  (newColor) => {
+    if (newColor) {
+      accentColor.value = newColor
+      store.setAccentColor(newColor)
+    }
   },
   { immediate: true },
 )
 
-onMounted(() => {
-  manager.initialize()
-})
+watch(
+  projects,
+  async (list) => {
+    if (list.length === 0) {
+      await store.init()
+    }
+
+    if (isPageLoading.value) {
+      setTimeout(() => {
+        isPageLoading.value = false
+      }, FADE_DELAY_MS)
+    }
+
+    for (const project of list) {
+      if (project.thumbnailUrl && !projectColors.value[project.id]) {
+        projectColors.value[project.id] = await colorService.extractDominantColor(
+          project.thumbnailUrl,
+        )
+      }
+    }
+  },
+  { immediate: true, deep: true },
+)
 </script>
 
 <template>

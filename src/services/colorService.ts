@@ -1,53 +1,53 @@
 import ColorThief from 'colorthief'
-import type { IRGB, IHSL } from '@/types'
 
-interface IColorService {
-  extractDominantColor(imageUrl: string): Promise<string>
-}
+const DEFAULT_COLOR = '#f3d0d3'
 
-class ColorService implements IColorService {
-  private readonly _cache: Map<string, string> = new Map()
-  private readonly _colorThief: ColorThief = new ColorThief()
+// Saturation (0.0 - 1.0): меньше = грязнее/серее
+const SAT_MIN = 0.3
+const SAT_MAX = 0.5
 
-  private readonly _DEFAULT_COLOR: string = '#f3d0d3'
-  private readonly _SAT_RANGE = { min: 0.3, max: 0.5 }
-  private readonly _LIGHT_RANGE = { min: 0.75, max: 0.85 }
+// lightness (0.0 - 1.0): больше = светлее (фон)
+const LIGHT_MIN = 0.75
+const LIGHT_MAX = 0.85
+
+class ColorService {
+  private cache = new Map<string, string>()
+  private colorThief = new ColorThief()
 
   public async extractDominantColor(imageUrl: string): Promise<string> {
-    if (!imageUrl) return this._DEFAULT_COLOR
-
-    const cached = this._cache.get(imageUrl)
-    if (cached) return cached
+    if (this.cache.has(imageUrl)) return this.cache.get(imageUrl)!
 
     try {
-      const img: HTMLImageElement = await this.#loadImageOptimized(imageUrl)
-      const [r, g, b]: [number, number, number] = this._colorThief.getColor(img)
+      const img = await this.loadImage(imageUrl)
 
-      const hsl = this.#rgbToHsl(r, g, b)
-      const mutedS = Math.max(this._SAT_RANGE.min, Math.min(hsl.s, this._SAT_RANGE.max))
-      const brightL = Math.max(this._LIGHT_RANGE.min, Math.min(hsl.l, this._LIGHT_RANGE.max))
+      const [r, g, b] = this.colorThief.getColor(img)
+      const [h, s, l] = this.rgbToHsl(r, g, b)
 
-      const rgb = this.#hslToRgb(hsl.h, mutedS, brightL)
-      const hex = this.#rgbToHex(rgb.r, rgb.g, rgb.b)
+      const mutedS = Math.max(SAT_MIN, Math.min(s, SAT_MAX))
+      const brightL = Math.max(LIGHT_MIN, Math.min(l, LIGHT_MAX))
 
-      this._cache.set(imageUrl, hex)
+      const [finalR, finalG, finalB] = this.hslToRgb(h, mutedS, brightL)
+      const hex = this.rgbToHex(finalR, finalG, finalB)
+
+      this.cache.set(imageUrl, hex)
       return hex
     } catch (error) {
-      console.warn('[ColorService] Error:', error)
-      return this._DEFAULT_COLOR
+      console.warn('Color extraction failed', error)
+      return DEFAULT_COLOR
     }
   }
 
-  async #loadImageOptimized(src: string): Promise<HTMLImageElement> {
-    const img = new Image()
-    img.crossOrigin = 'Anonymous'
-    img.src = src
-
-    await img.decode()
-    return img
+  private loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'Anonymous'
+      img.src = src
+      img.onload = () => resolve(img)
+      img.onerror = reject
+    })
   }
 
-  #rgbToHsl(r: number, g: number, b: number): IHSL {
+  private rgbToHsl(r: number, g: number, b: number): [number, number, number] {
     r /= 255
     g /= 255
     b /= 255
@@ -60,39 +60,50 @@ class ColorService implements IColorService {
     if (max !== min) {
       const d = max - min
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-      if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
-      else if (max === g) h = (b - r) / d + 2
-      else h = (r - g) / d + 4
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0)
+          break
+        case g:
+          h = (b - r) / d + 2
+          break
+        case b:
+          h = (r - g) / d + 4
+          break
+      }
       h /= 6
     }
-    return { h, s, l }
+    return [h, s, l]
   }
 
-  #hslToRgb(h: number, s: number, l: number): IRGB {
-    let r: number, g: number, b: number
-    const hue2rgb = (p: number, q: number, t: number): number => {
-      if (t < 0) t += 1
-      if (t > 1) t -= 1
-      if (t < 1 / 6) return p + (q - p) * 6 * t
-      if (t < 1 / 2) return q
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-      return p
-    }
-
+  private hslToRgb(h: number, s: number, l: number): [number, number, number] {
+    let r, g, b
     if (s === 0) {
       r = g = b = l
     } else {
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1
+        if (t > 1) t -= 1
+        if (t < 1 / 6) return p + (q - p) * 6 * t
+        if (t < 1 / 2) return q
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+        return p
+      }
       const q = l < 0.5 ? l * (1 + s) : l + s - l * s
       const p = 2 * l - q
       r = hue2rgb(p, q, h + 1 / 3)
       g = hue2rgb(p, q, h)
       b = hue2rgb(p, q, h - 1 / 3)
     }
-    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
   }
 
-  #rgbToHex(r: number, g: number, b: number): string {
-    return `#${[r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')}`
+  private rgbToHex(r: number, g: number, b: number): string {
+    const toHex = (c: number) => {
+      const hex = c.toString(16)
+      return hex.length === 1 ? '0' + hex : hex
+    }
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`
   }
 }
 

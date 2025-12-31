@@ -38,20 +38,3 @@ export interface YoutubeMetaData {
   width: number
   height: number
 }
-
-export interface IRGB {
-  r: number
-  g: number
-  b: number
-}
-
-export interface IHSL {
-  h: number
-  s: number
-  l: number
-}
-
-export interface IProjectsManager {
-  initialize(): Promise<void>
-  processColors(list: Project[]): Promise<void>
-}
