@@ -47,10 +47,14 @@ const goToSite = () => {
 const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
 
 watch(
-  () => heroProject.value?.heroThumbnailUrl || heroProject.value?.thumbnailUrl,
+  () => heroProject.value?.thumbnailUrl,
   async (newUrl) => {
-    const color = newUrl ? await colorService.extractDominantColor(newUrl) : '#f3d0d3'
-    projectsStore.setHeroAccentColor(color)
+    if (newUrl) {
+      const color = await colorService.extractDominantColor(newUrl)
+      projectsStore.setHeroAccentColor(color)
+    } else {
+      projectsStore.setHeroAccentColor('#f3d0d3')
+    }
   },
   { immediate: true },
 )
