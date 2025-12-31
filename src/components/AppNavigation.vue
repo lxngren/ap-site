@@ -353,7 +353,7 @@ const cssVars = computed(() => {
     transform: none !important;
   }
   .nav-link-wrapper {
-    padding: 8px 0;
+    padding: 0 0 0 10px;
   }
 }
 
