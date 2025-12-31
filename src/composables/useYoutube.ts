@@ -1,5 +1,5 @@
 import { ref, watch, toValue, type MaybeRef } from 'vue'
-import { youtubeService } from '@/services/youtube'
+import { youtubeService } from '@/services/YouTubeService.ts'
 import type { YoutubeMetaData } from '@/types'
 
 export function useYoutube(videoId: MaybeRef<string | undefined | null>) {

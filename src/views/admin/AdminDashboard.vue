@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
+
 import { useAdminStore } from '@/stores/admin'
 import { useProjectsStore } from '@/stores/projects'
-import { colorService } from '@/services/colorService'
+import { colorService } from '@/services/ColorService'
+
 import type { AboutData, Project } from '@/types'
 import router from '@/router'
 

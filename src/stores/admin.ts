@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { gistService } from '@/services/gistService'
-import { youtubeService } from '@/services/youtube'
+
+import { gistService } from '@/services/GistService'
+import { youtubeService } from '@/services/YouTubeService'
+
 import type { Project, AboutData, GlobalSettings } from '@/types'
 
 const SESSION_KEY = 'gh_admin_token'

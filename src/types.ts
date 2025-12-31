@@ -50,8 +50,3 @@ export interface IHSL {
   s: number
   l: number
 }
-
-export interface IProjectsManager {
-  initialize(): Promise<void>
-  processColors(list: Project[]): Promise<void>
-}
