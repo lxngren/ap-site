@@ -25,7 +25,6 @@ const initialFormState = {
   category: '3D / VFX',
   youtubeId: '',
   thumbnailUrl: '',
-  heroThumbnailUrl: '',
   isFeatured: false,
 }
 const formData = ref<Project>({ ...initialFormState } as Project)
@@ -314,16 +313,6 @@ const draggableProjects = computed({
           <label>THUMBNAIL URL</label><input v-model="formData.thumbnailUrl" />
           <div class="thumb-preview" v-if="formData.thumbnailUrl">
             <img :src="formData.thumbnailUrl" />
-          </div>
-        </div>
-        <div class="field-group" v-if="formData.isFeatured">
-          <label>CUSTOM HERO IMAGE (OPTIONAL)</label>
-          <input
-            v-model="formData.heroThumbnailUrl"
-            placeholder="Leave empty to use standard thumbnail"
-          />
-          <div class="thumb-preview" v-if="formData.heroThumbnailUrl">
-            <img :src="formData.heroThumbnailUrl" alt="Hero Preview" />
           </div>
         </div>
       </div>

@@ -6,7 +6,6 @@ export interface Project {
   category: string
   youtubeId: string // Changed
   thumbnailUrl: string
-  heroThumbnailUrl?: string
   isFeatured: boolean
 }
 
