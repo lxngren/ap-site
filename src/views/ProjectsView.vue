@@ -32,6 +32,11 @@ const filteredProjects = computed(() => {
   return list.filter((p) => p.category === activeFilter.value)
 })
 
+const heroImageUrl = computed(() => {
+  if (!heroProject.value) return ''
+  return heroProject.value.heroThumbnailUrl || heroProject.value.thumbnailUrl
+})
+
 const goToProject = (id: number): void => {
   router.push({ name: 'project-detail', params: { id } })
 }
@@ -103,7 +108,7 @@ watch(
     <div class="content-wrapper" :class="{ 'content-visible': !isPageLoading }">
       <div class="hero-background" v-if="heroProject">
         <div class="bg-image-wrapper" :class="{ 'img-loaded': isHeroImageLoaded }">
-          <img :src="heroProject.thumbnailUrl" alt="Hero Background" @load="handleHeroLoad" />
+          <img :src="heroImageUrl" alt="Hero Background" @load="handleHeroLoad" />
         </div>
         <div class="hero-overlay"></div>
       </div>

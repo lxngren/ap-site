@@ -25,13 +25,10 @@ export const useProjectsStore = defineStore('projects', () => {
         globalSettings.value = config.global
       }
       const heroProject = projects.value.find((p) => p.isFeatured)
-      if (heroProject && heroProject.thumbnailUrl) {
-        const color = await colorService.extractDominantColor(heroProject.thumbnailUrl)
+      const sourceUrl = heroProject?.heroThumbnailUrl || heroProject?.thumbnailUrl
+      const color = sourceUrl ? await colorService.extractDominantColor(sourceUrl) : '#f3d0d3'
 
-        setHeroAccentColor(color)
-      } else {
-        setHeroAccentColor('#f3d0d3')
-      }
+      setHeroAccentColor(color)
     } catch (e) {
       console.error('Failed to load content', e)
     }
