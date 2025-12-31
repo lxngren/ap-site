@@ -137,12 +137,17 @@ const clipboard = async () => {
   font-family: 'Archivo Black', sans-serif;
   font-size: clamp(3rem, 6vw, 6rem);
   line-height: 0.9;
-  color: #fff;
+  color: #ffffff;
   margin: 0;
   text-transform: uppercase;
   transform: scaleX(1.05);
   transform-origin: left;
 }
+
+.main-title::first-line {
+  color: var(--main-accent);
+}
+
 .separator {
   width: 100px;
   height: 4px;
@@ -231,6 +236,10 @@ const clipboard = async () => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+.btn-content .arrow {
+  margin-left: 10px;
 }
 
 .copy-btn {

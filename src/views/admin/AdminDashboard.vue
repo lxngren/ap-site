@@ -554,7 +554,6 @@ const draggableProjects = computed({
   color: #f00;
 }
 
-/* --- COLOR CONTROL STYLES --- */
 .color-control-wrapper {
   position: relative;
   display: flex;
@@ -573,7 +572,6 @@ const draggableProjects = computed({
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  /* Цвет фона и рамки теперь inline */
   cursor: pointer;
   transition: transform 0.2s;
   display: flex;
@@ -588,7 +586,6 @@ const draggableProjects = computed({
 .hero-indicator {
   font-size: 10px;
   font-weight: 900;
-  /* Цвет текста задается inline */
 }
 
 .color-popover {
@@ -643,7 +640,6 @@ input[type='color'] {
   padding: 2px;
 }
 
-/* PANEL & FORM STYLES */
 .slide-panel {
   position: fixed;
   top: 0;
@@ -757,7 +753,6 @@ select:focus {
   transition: transform 0.3s;
 }
 
-/* ДИНАМИЧЕСКИЙ ЦВЕТ ТУМБЛЕРА */
 .hero-toggle.active {
   background-color: v-bind(currentHeroColor);
 }
