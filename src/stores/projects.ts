@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-import { gistService } from '@/services/GistService'
-import { colorService } from '@/services/ColorService'
-
+import { gistService } from '@/services/gistService'
 import type { Project, AboutData, GlobalSettings } from '@/types'
+import { colorService } from '@/services/colorService.ts'
 
 export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])

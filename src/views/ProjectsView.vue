@@ -1,66 +1,107 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, onMounted, ref, type Ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-
 import { useProjectsStore } from '@/stores/projects'
-import { ProjectsDisplayManager } from '@/services/ProjectsDisplayService'
-import { AssetsLoader } from '@/services/AssetsLoader'
-
+import { colorService } from '@/services/colorService'
 import type { Project } from '@/types'
 
+const filters = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design'] as const
+type FilterType = (typeof filters)[number]
+
+class ProjectsDisplayManager {
+  readonly #store: ReturnType<typeof useProjectsStore>
+  readonly #isPageLoading: Ref<boolean>
+  readonly #projectColors: Ref<Record<number, string>>
+  readonly #fadeDelay: number
+
+  constructor(
+    store: ReturnType<typeof useProjectsStore>,
+    isPageLoading: Ref<boolean>,
+    projectColors: Ref<Record<number, string>>,
+    fadeDelay: number,
+  ) {
+    this.#store = store
+    this.#isPageLoading = isPageLoading
+    this.#projectColors = projectColors
+    this.#fadeDelay = fadeDelay
+  }
+
+  public async initialize(): Promise<void> {
+    try {
+      await Promise.allSettled([
+        this.#store.init(),
+        new Promise((resolve) => setTimeout(resolve, this.#fadeDelay)),
+      ])
+    } finally {
+      this.#isPageLoading.value = false
+    }
+  }
+
+  public async updateColors(projects: Project[]): Promise<void> {
+    const tasks = projects
+      .filter((p) => p.thumbnailUrl && !this.#projectColors.value[p.id])
+      .map(async (p) => {
+        this.#projectColors.value[p.id] = await colorService.extractDominantColor(p.thumbnailUrl)
+      })
+
+    await Promise.allSettled(tasks)
+  }
+}
+
 const FADE_DELAY_MS = 800
+const IMAGE_FADE_DELAY_MS = 100
 const DEFAULT_ACCENT = '#f3d0d3'
 
 const store = useProjectsStore()
 const router = useRouter()
 
 const isPageLoading = ref<boolean>(store.projects.length === 0)
+const loadedImageIds = ref<Set<number>>(new Set())
+const isHeroImageLoaded = ref<boolean>(false)
 const projectColors = ref<Record<number, string>>({})
-const activeFilter = ref<string>('All')
+const activeFilter = ref<FilterType>('All')
 
-const loader = new AssetsLoader()
 const manager = new ProjectsDisplayManager(store, isPageLoading, projectColors, FADE_DELAY_MS)
-
-const filters = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design'] as const
 
 const projects = computed<Project[]>(() => store.projects)
 const heroProject = computed<Project | undefined>(() => store.projects.find((p) => p.isFeatured))
 
 const heroImageUrl = computed<string>(() => {
   const project = heroProject.value
-  return project ? project.heroThumbnailUrl || project.thumbnailUrl : ''
+  if (!project) return ''
+  return project.heroThumbnailUrl || project.thumbnailUrl
 })
+
+const accentColor = computed<string>(() => store.heroAccentColor || DEFAULT_ACCENT)
 
 const filteredProjects = computed<Project[]>(() => {
   if (activeFilter.value === 'All') return projects.value
   return projects.value.filter((p) => p.category === activeFilter.value)
 })
 
-const accentColor = computed<string>(() => store.heroAccentColor || DEFAULT_ACCENT)
+const handleImageLoad = (id: number): void => {
+  setTimeout(() => loadedImageIds.value.add(id), IMAGE_FADE_DELAY_MS)
+}
 
-watch(
-  heroImageUrl,
-  (url) => {
-    if (url) loader.load('hero', url)
-  },
-  { immediate: true },
-)
-
-watch(
-  projects,
-  (list) => {
-    if (list.length > 0) {
-      manager.processGridColors(list)
-    }
-  },
-  { immediate: true },
-)
-
-onMounted(() => manager.initialize())
+const handleHeroLoad = (): void => {
+  isHeroImageLoaded.value = true
+}
 
 const goToProject = (id: number): void => {
   router.push({ name: 'project-detail', params: { id } })
 }
+
+watch(
+  projects,
+  (list) => {
+    if (list.length > 0) manager.updateColors(list)
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  manager.initialize()
+})
 </script>
 
 <template>
@@ -83,9 +124,8 @@ const goToProject = (id: number): void => {
 
     <div class="content-wrapper" :class="{ 'content-visible': !isPageLoading }">
       <div class="hero-background" v-if="heroProject">
-        <div class="bg-image-wrapper" :class="{ 'img-loaded': loader.isLoaded('hero') }">
-          <div v-if="!loader.isLoaded('hero')" class="sk-image hero-skeleton-overlay"></div>
-          <img :key="heroImageUrl" :src="heroImageUrl" alt="Hero Background" />
+        <div class="bg-image-wrapper" :class="{ 'img-loaded': isHeroImageLoaded }">
+          <img :src="heroImageUrl" alt="Hero Background" @load="handleHeroLoad" />
         </div>
         <div class="hero-overlay"></div>
       </div>
@@ -112,13 +152,6 @@ const goToProject = (id: number): void => {
         </div>
 
         <div class="grid-section">
-          <section v-if="filteredProjects.length > 0" class="projects-grid">
-          </section>
-
-          <div v-else-if="!isPageLoading" class="error-state">
-            <p>Unable to load projects. Please check your connection or GitHub API limits.</p>
-            <button @click="manager.initialize()">TRY AGAIN</button>
-          </div>
           <nav class="filters-nav">
             <button
               v-for="filter in filters"
@@ -130,6 +163,7 @@ const goToProject = (id: number): void => {
               {{ filter }}
             </button>
           </nav>
+
           <section class="projects-grid">
             <article
               class="project-card"
@@ -138,16 +172,12 @@ const goToProject = (id: number): void => {
               @click="goToProject(project.id)"
               :style="{ '--item-accent': projectColors[project.id] || DEFAULT_ACCENT }"
             >
-              <div class="card-image-box" :class="{ loaded: loader.isLoaded(project.id) }">
-                <div
-                  v-if="!loader.isLoaded(project.id)"
-                  class="sk-image grid-skeleton-overlay"
-                ></div>
+              <div class="card-image-box" :class="{ loaded: loadedImageIds.has(project.id) }">
                 <img
                   :src="project.thumbnailUrl"
                   :alt="project.title"
                   loading="lazy"
-                  @load="loader.load(project.id, project.thumbnailUrl)"
+                  @load="handleImageLoad(project.id)"
                 />
                 <div class="card-overlay"></div>
               </div>
@@ -197,6 +227,7 @@ const goToProject = (id: number): void => {
   opacity: 1;
 }
 
+/* Transition: Fade Out Skeleton */
 .fade-leave-active {
   transition: opacity 0.8s ease;
 }
@@ -204,6 +235,7 @@ const goToProject = (id: number): void => {
   opacity: 0;
 }
 
+/* Transition: Slide Up Hero Text */
 .slide-up-enter-active {
   transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -227,12 +259,6 @@ const goToProject = (id: number): void => {
   height: 100%;
   position: relative;
   background: #050505;
-}
-
-.hero-skeleton-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
 }
 
 .bg-image-wrapper img {
@@ -391,12 +417,6 @@ const goToProject = (id: number): void => {
   border: 2px solid transparent;
   box-sizing: border-box;
   transition: border-color 0.3s ease;
-}
-
-.grid-skeleton-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
 }
 
 .card-image-box img {

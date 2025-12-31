@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-
 import { useProjectsStore } from '@/stores/projects'
-import { useYoutube } from '@/composables/useYoutube'
-import { colorService } from '@/services/ColorService'
 
+import { useYoutube } from '@/composables/useYoutube.ts'
 import YouTubePlayer from '@/components/YouTubePlayer.vue'
+import { colorService } from '@/services/colorService'
 
 const route = useRoute()
 const store = useProjectsStore()

@@ -9,7 +9,7 @@ class ColorService implements IColorService {
   private readonly _cache: Map<string, string> = new Map()
   private readonly _colorThief: ColorThief = new ColorThief()
 
-  private readonly _DEFAULT_COLOR: string = '#a39fdf'
+  private readonly _DEFAULT_COLOR: string = '#f3d0d3'
   private readonly _SAT_RANGE = { min: 0.3, max: 0.5 }
   private readonly _LIGHT_RANGE = { min: 0.75, max: 0.85 }
 
