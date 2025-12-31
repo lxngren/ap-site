@@ -15,11 +15,10 @@ export const useAdminStore = defineStore('admin', () => {
   const about = ref<AboutData>({
     title: '',
     description: '',
-    bio: '',
     skills: [],
     email: '',
     instagram: '',
-    youtube: '',
+    discord: '',
   })
 
   const globalSettings = ref<GlobalSettings>({

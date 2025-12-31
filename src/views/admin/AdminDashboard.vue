@@ -32,11 +32,10 @@ const formData = ref<Project>({ ...initialFormState } as Project)
 const aboutFormData = ref<AboutData>({
   title: '',
   description: '',
-  bio: '',
   skills: [],
   email: '',
   instagram: '',
-  youtube: '',
+  discord: '',
 })
 const skillsString = ref('')
 
@@ -338,9 +337,6 @@ const draggableProjects = computed({
           <label>DESCRIPTION</label><input v-model="aboutFormData.description" />
         </div>
         <div class="field-group">
-          <label>BIO</label><textarea v-model="aboutFormData.bio" rows="8"></textarea>
-        </div>
-        <div class="field-group">
           <label>SKILLS (ONE PER LINE)</label><textarea v-model="skillsString" rows="6"></textarea>
         </div>
         <div class="field-group"><label>EMAIL</label><input v-model="aboutFormData.email" /></div>
@@ -348,7 +344,7 @@ const draggableProjects = computed({
           <label>INSTAGRAM</label><input v-model="aboutFormData.instagram" />
         </div>
         <div class="field-group">
-          <label>YOUTUBE</label><input v-model="aboutFormData.youtube" />
+          <label>DISCORD</label><input v-model="aboutFormData.discord" />
         </div>
       </div>
       <div class="panel-footer">

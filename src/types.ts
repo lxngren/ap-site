@@ -12,11 +12,10 @@ export interface Project {
 export interface AboutData {
   title: string
   description: string
-  bio: string
   skills: string[]
   email: string
   instagram: string
-  youtube: string // Changed
+  discord: string // Changed
 }
 
 export interface GlobalSettings {

@@ -1,27 +1,41 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
 
 const store = useProjectsStore()
+const isCopied = ref(false)
 
 const about = computed(
   () =>
     store.about || {
       title: 'LOADING...',
       description: '',
-      bio: '',
       skills: [],
       email: '',
       instagram: '',
-      youtube: '',
+      discord: '',
     },
 )
+
+const clipboard = async () => {
+  const login = about.value.discord
+  if (login) {
+    try {
+      await navigator.clipboard.writeText(login)
+      isCopied.value = true
+      setTimeout(() => {
+        isCopied.value = false
+      }, 2000)
+    } catch (e) {
+      console.error('Failed to copy', e)
+    }
+  }
+}
 </script>
 
 <template>
   <div class="about-page">
     <div class="page-overlay"></div>
-
     <div class="content-container">
       <div class="col-left">
         <h1 class="main-title" v-html="about.title"></h1>
@@ -31,13 +45,8 @@ const about = computed(
       </div>
 
       <div class="col-right">
-        <section class="info-block">
-          <h2 class="block-label">BIO</h2>
-          <p class="text-body">{{ about.bio }}</p>
-        </section>
-
         <section class="info-block" v-if="about.skills && about.skills.length">
-          <h2 class="block-label">SKILLS</h2>
+          <h2 class="block-label">Core expertise</h2>
           <ul class="skills-list">
             <li v-for="skill in about.skills" :key="skill">
               {{ skill }}
@@ -55,18 +64,26 @@ const about = computed(
             <a v-if="about.instagram" :href="about.instagram" target="_blank" class="text-link">
               INSTAGRAM <span class="arrow">→</span>
             </a>
-
-            <a v-if="about.youtube" :href="about.youtube" target="_blank" class="text-link">
-              YOUTUBE <span class="arrow">→</span>
-            </a>
+            <button
+              v-if="about.discord"
+              @click="clipboard"
+              class="text-link copy-btn"
+              :class="{ success: isCopied }"
+            >
+              <Transition name="fade-text" mode="out-in">
+                <span v-if="!isCopied" class="btn-content" key="discord">
+                  DISCORD (@{{ about.discord }}) <span class="arrow">→</span>
+                </span>
+                <span v-else class="btn-content" key="copied"> COPIED! </span>
+              </Transition>
+            </button>
           </div>
         </section>
-
-        <div class="credits-block">
-          <a href="https://t.me/piratism" target="_blank" class="credits-link">
-            DEVELOPED BY LXNGREN
-          </a>
-        </div>
+      </div>
+      <div class="credits-block">
+        <a href="https://t.me/piratism" target="_blank" class="credits-link">
+          DEVELOPED BY LXNGREN
+        </a>
       </div>
     </div>
   </div>
@@ -108,6 +125,7 @@ const about = computed(
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4rem;
+  align-content: start;
 }
 
 .col-left {
@@ -157,6 +175,7 @@ const about = computed(
   text-transform: uppercase;
   letter-spacing: 1px;
 }
+
 .text-body {
   font-size: 1.1rem;
   line-height: 1.6;
@@ -208,11 +227,33 @@ const about = computed(
   transform: translateX(5px);
 }
 
+.btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  text-transform: uppercase;
+}
+
+.copy-btn.success {
+  color: var(--main-accent);
+}
+
 .credits-block {
+  grid-column: 1 / -1;
+
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+
   display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .credits-link {
@@ -228,6 +269,16 @@ const about = computed(
 
 .credits-link:hover {
   color: var(--main-accent);
+}
+
+.fade-text-enter-active,
+.fade-text-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-text-enter-from,
+.fade-text-leave-to {
+  opacity: 0;
 }
 
 @media (max-width: 1024px) {
