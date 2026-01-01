@@ -16,6 +16,7 @@ export const useAdminStore = defineStore('admin', () => {
     title: '',
     description: '',
     skills: [],
+    software: [],
     email: '',
     instagram: '',
     discord: '',
@@ -91,7 +92,10 @@ export const useAdminStore = defineStore('admin', () => {
     const data = await gistService.fetchConfig()
 
     projects.value = data.projects || []
-    if (data.about) about.value = data.about
+    if (data.about) about.value = {
+      ...data.about,
+      software: data.about.software || [],
+    }
     if (data.global) globalSettings.value = data.global
   }
 

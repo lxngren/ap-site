@@ -9,10 +9,16 @@ export interface Project {
   isFeatured: boolean
 }
 
+export interface SoftwareGroup {
+  category: string
+  items: string[]
+}
+
 export interface AboutData {
   title: string
   description: string
   skills: string[]
+  software: SoftwareGroup[]
   email: string
   instagram: string
   discord: string // Changed

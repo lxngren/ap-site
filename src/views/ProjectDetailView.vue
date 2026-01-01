@@ -10,7 +10,7 @@ import { colorService } from '@/services/colorService'
 const route = useRoute()
 const store = useProjectsStore()
 
-const accentColor = ref('#f3d0d3')
+const accentColor = ref('#a49fdf')
 const projectId = computed(() => Number(route.params.id))
 const project = computed(() => store.getProjectById(projectId.value))
 
@@ -28,7 +28,7 @@ const background_source = computed(() => {
 watch(
   background_source,
   async (newUrl) => {
-    const color = newUrl ? await colorService.extractDominantColor(newUrl) : '#f3d0d3'
+    const color = newUrl ? await colorService.extractDominantColor(newUrl) : '#a49fdf'
     accentColor.value = color
     store.setAccentColor(color)
   },

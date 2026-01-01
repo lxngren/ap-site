@@ -115,7 +115,7 @@ onUnmounted(() => {
 
 <style>
 :root {
-  --main-accent: #f0d0d3;
+  --main-accent: #a49fdf;
 }
 
 body {

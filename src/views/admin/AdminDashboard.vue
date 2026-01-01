@@ -4,7 +4,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { useAdminStore } from '@/stores/admin'
 import { useProjectsStore } from '@/stores/projects'
 import { colorService } from '@/services/colorService'
-import type { AboutData, Project } from '@/types'
+import type { AboutData, Project, SoftwareGroup } from '@/types'
 import router from '@/router'
 
 const store = useAdminStore()
@@ -14,6 +14,9 @@ const isPanelOpen = ref(false)
 const isAboutPanelOpen = ref(false)
 const isEditing = ref(false)
 const isColorPickerOpen = ref(false)
+
+const skillsString = ref('')
+const softwareString = ref('')
 
 const CATEGORIES = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design']
 
@@ -33,11 +36,11 @@ const aboutFormData = ref<AboutData>({
   title: '',
   description: '',
   skills: [],
+  software: [],
   email: '',
   instagram: '',
   discord: '',
 })
-const skillsString = ref('')
 
 const goToSite = () => {
   router.push('/projects')
@@ -52,13 +55,13 @@ watch(
       const color = await colorService.extractDominantColor(newUrl)
       projectsStore.setHeroAccentColor(color)
     } else {
-      projectsStore.setHeroAccentColor('#f3d0d3')
+      projectsStore.setHeroAccentColor('#a49fdf')
     }
   },
   { immediate: true },
 )
 
-const currentHeroColor = computed(() => projectsStore.heroAccentColor || '#f3d0d3')
+const currentHeroColor = computed(() => projectsStore.heroAccentColor || '#a49fdf')
 
 const settingsMode = computed({
   get: () => store.globalSettings.accentMode === 'hero',
@@ -129,6 +132,11 @@ const handleSubmit = () => {
 const openAboutPanel = () => {
   aboutFormData.value = { ...store.about }
   skillsString.value = store.about.skills.join('\n')
+
+  softwareString.value = store.about.software
+    .map((g) => `${g.category}: ${g.items.join(', ')}`)
+    .join('\n')
+
   isAboutPanelOpen.value = true
   document.body.style.overflow = 'hidden'
 }
@@ -143,6 +151,22 @@ const handleAboutSubmit = async () => {
     .split('\n')
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
+
+  aboutFormData.value.software = softwareString.value
+    .split('\n')
+    .map((line) => {
+      const [category, itemsStr] = line.split(':')
+      if (!category || !itemsStr) return null
+
+      return {
+        category: category.trim(),
+        items: itemsStr
+          .split(',')
+          .map((i) => i.trim())
+          .filter((i) => i.length > 0),
+      } as SoftwareGroup
+    })
+    .filter((g): g is SoftwareGroup => g !== null)
 
   store.updateAbout(aboutFormData.value)
 
@@ -338,6 +362,14 @@ const draggableProjects = computed({
         </div>
         <div class="field-group">
           <label>SKILLS (ONE PER LINE)</label><textarea v-model="skillsString" rows="6"></textarea>
+        </div>
+        <div class="field-group">
+          <label>SOFTWARE (FORMAT: "CATEGORY: TOOL, TOOL")</label>
+          <textarea
+            v-model="softwareString"
+            rows="4"
+            placeholder="3D: Blender, Houdini&#10;COMP: Nuke, After Effects"
+          ></textarea>
         </div>
         <div class="field-group"><label>EMAIL</label><input v-model="aboutFormData.email" /></div>
         <div class="field-group">

@@ -10,10 +10,10 @@ export const useProjectsStore = defineStore('projects', () => {
 
   const globalSettings = ref<GlobalSettings>({
     accentMode: 'custom',
-    customColor: '#f0d0d3',
+    customColor: '#a49fdf',
   })
 
-  const currentAccentColor = ref<string>('#f3d0d3')
+  const currentAccentColor = ref<string>('#a49fdf')
   const heroAccentColor = ref<string | null>(null)
 
   async function init() {
@@ -30,7 +30,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
         setHeroAccentColor(color)
       } else {
-        setHeroAccentColor('#f3d0d3')
+        setHeroAccentColor('#a49fdf')
       }
     } catch (e) {
       console.error('Failed to load content', e)

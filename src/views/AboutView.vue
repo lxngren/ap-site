@@ -11,6 +11,7 @@ const about = computed(
       title: 'LOADING...',
       description: '',
       skills: [],
+      software: [],
       email: '',
       instagram: '',
       discord: '',
@@ -53,7 +54,15 @@ const clipboard = async () => {
             </li>
           </ul>
         </section>
-
+        <section class="info-block" v-if="about.software && about.software.length">
+          <h2 class="block-label">Software proficiency</h2>
+          <div class="software-grid">
+            <div v-for="(group, index) in about.software" :key="index" class="software-group">
+              <span class="software-category">{{ group.category }}</span>
+              <span class="software-items">{{ group.items.join(', ') }}</span>
+            </div>
+          </div>
+        </section>
         <section class="info-block">
           <h2 class="block-label">CONTACTS</h2>
           <div class="links-stack">
@@ -278,6 +287,47 @@ const clipboard = async () => {
 
 .credits-link:hover {
   color: var(--main-accent);
+}
+
+.software-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.software-group {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: baseline;
+  gap: 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.software-group:last-child {
+  border-bottom: none;
+}
+
+.software-category {
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+}
+
+.software-items {
+  color: #fff;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+  .software-group {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
 }
 
 .fade-text-enter-active,

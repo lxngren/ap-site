@@ -6,7 +6,7 @@ import { colorService } from '@/services/colorService'
 
 const FADE_DELAY_MS = 800
 const IMAGE_FADE_DELAY_MS = 100
-const DEFAULT_ACCENT = '#f3d0d3'
+const DEFAULT_ACCENT = '#a49fdf'
 
 const store = useProjectsStore()
 const router = useRouter()
@@ -382,7 +382,7 @@ watch(
   flex-direction: column;
   cursor: pointer;
   group: hover;
-  --item-accent: #f3d0d3;
+  --item-accent: #a49fdf;
 }
 
 .card-image-box {

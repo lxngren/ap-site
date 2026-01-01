@@ -1,6 +1,6 @@
 import ColorThief from 'colorthief'
 
-const DEFAULT_COLOR = '#f3d0d3'
+const DEFAULT_COLOR = '#a49fdf'
 
 // Saturation (0.0 - 1.0): меньше = грязнее/серее
 const SAT_MIN = 0.3
