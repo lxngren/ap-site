@@ -56,7 +56,7 @@ const isHome = computed(() => route.name === 'home')
 const isProjectPage = computed(() => route.name === 'project-detail')
 const isAdmin = computed(() => route.path.startsWith('/admin'))
 
-const DEFAULT_ACCENT = 'rgba(50,153,255,0.8)'
+const DEFAULT_ACCENT = 'rgba(164,159,223,0.8)'
 
 const NAVIGATION_ACCENT_COLOR = computed(() => {
   if (route.name === 'about') return store.mainAccent
