@@ -25,6 +25,29 @@ const background_source = computed(() => {
   return project.value.thumbnailUrl
 })
 
+const downgradeYtThumbnail = (img: HTMLImageElement): boolean => {
+  if (img.src.includes('maxresdefault')) {
+    img.src = img.src.replace('maxresdefault', 'hqdefault')
+    return true
+  }
+  if (img.src.includes('hqdefault')) {
+    img.src = img.src.replace('hqdefault', 'mqdefault')
+    return true
+  }
+  return false
+}
+
+const handleBgError = (event: Event): void => {
+  downgradeYtThumbnail(event.target as HTMLImageElement)
+}
+
+const handleBgLoad = (event: Event): void => {
+  const img = event.target as HTMLImageElement
+  if (img.naturalWidth <= 120 && img.naturalHeight <= 90) {
+    downgradeYtThumbnail(img)
+  }
+}
+
 watch(
   background_source,
   async (newUrl) => {
@@ -46,6 +69,8 @@ watch(
           :src="background_source"
           alt=""
           class="bg-image-hd"
+          @load="handleBgLoad"
+          @error="handleBgError"
         />
       </transition>
       <div class="bg-overlay"></div>

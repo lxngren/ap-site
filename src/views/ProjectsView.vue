@@ -36,14 +36,39 @@ const goToProject = (id: number): void => {
   router.push({ name: 'project-detail', params: { id } })
 }
 
-const handleImageLoad = (id: number): void => {
+const downgradeYtThumbnail = (img: HTMLImageElement): boolean => {
+  if (img.src.includes('maxresdefault')) {
+    img.src = img.src.replace('maxresdefault', 'hqdefault')
+    return true
+  }
+  if (img.src.includes('hqdefault')) {
+    img.src = img.src.replace('hqdefault', 'mqdefault')
+    return true
+  }
+  return false
+}
+
+const isYtPlaceholder = (img: HTMLImageElement): boolean => {
+  return img.naturalWidth <= 120 && img.naturalHeight <= 90
+}
+
+const handleImageLoad = (event: Event, id: number): void => {
+  const img = event.target as HTMLImageElement
+  if (isYtPlaceholder(img) && downgradeYtThumbnail(img)) return
+
   setTimeout(() => {
     loadedImageIds.value.add(id)
   }, IMAGE_FADE_DELAY_MS)
 }
 
-const handleHeroLoad = (): void => {
+const handleHeroLoad = (event: Event): void => {
+  const img = event.target as HTMLImageElement
+  if (isYtPlaceholder(img) && downgradeYtThumbnail(img)) return
   isHeroImageLoaded.value = true
+}
+
+const handleThumbnailError = (event: Event): void => {
+  downgradeYtThumbnail(event.target as HTMLImageElement)
 }
 
 watch(
@@ -103,7 +128,12 @@ watch(
     <div class="content-wrapper" :class="{ 'content-visible': !isPageLoading }">
       <div class="hero-background" v-if="heroProject">
         <div class="bg-image-wrapper" :class="{ 'img-loaded': isHeroImageLoaded }">
-          <img :src="heroProject.thumbnailUrl" alt="Hero Background" @load="handleHeroLoad" />
+          <img
+            :src="heroProject.thumbnailUrl"
+            alt="Hero Background"
+            @load="handleHeroLoad"
+            @error="handleThumbnailError"
+          />
         </div>
         <div class="hero-overlay"></div>
       </div>
@@ -155,7 +185,8 @@ watch(
                   :src="project.thumbnailUrl"
                   :alt="project.title"
                   loading="lazy"
-                  @load="handleImageLoad(project.id)"
+                  @load="handleImageLoad($event, project.id)"
+                  @error="handleThumbnailError"
                 />
                 <div class="card-overlay"></div>
               </div>

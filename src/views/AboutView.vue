@@ -10,91 +10,144 @@ const about = computed(
     store.about || {
       title: 'LOADING...',
       description: '',
-      skills: [],
-      software: [],
       email: '',
       instagram: '',
       discord: '',
     },
 )
 
-const clipboard = async () => {
+const instagramHandle = computed(() => {
+  const raw = about.value.instagram?.trim()
+  if (!raw) return ''
+  const match = raw.match(/instagram\.com\/([^/?#]+)/i)
+  if (match && match[1]) return '@' + match[1]
+  if (raw.startsWith('@')) return raw
+  return raw
+})
+
+type ContactEntry = {
+  key: 'email' | 'instagram' | 'discord'
+  label: string
+  value: string
+  href?: string
+  newTab?: boolean
+  copy?: boolean
+}
+
+const contactEntries = computed<ContactEntry[]>(() => {
+  const list: ContactEntry[] = []
+  if (about.value.email) {
+    list.push({
+      key: 'email',
+      label: 'EMAIL',
+      value: about.value.email,
+      href: `mailto:${about.value.email}`,
+    })
+  }
+  if (about.value.instagram) {
+    list.push({
+      key: 'instagram',
+      label: 'INSTAGRAM',
+      value: instagramHandle.value || 'OPEN PROFILE',
+      href: about.value.instagram,
+      newTab: true,
+    })
+  }
+  if (about.value.discord) {
+    list.push({
+      key: 'discord',
+      label: 'DISCORD',
+      value: '@' + about.value.discord,
+      copy: true,
+    })
+  }
+  return list
+})
+
+const handleDiscordCopy = async () => {
   const login = about.value.discord
-  if (login) {
-    try {
-      await navigator.clipboard.writeText(login)
-      isCopied.value = true
-      setTimeout(() => {
-        isCopied.value = false
-      }, 2000)
-    } catch (e) {
-      console.error('Failed to copy', e)
-    }
+  if (!login) return
+  try {
+    await navigator.clipboard.writeText(login)
+    isCopied.value = true
+    setTimeout(() => {
+      isCopied.value = false
+    }, 2000)
+  } catch (e) {
+    console.error('Failed to copy', e)
   }
 }
+
+const year = new Date().getFullYear()
 </script>
 
 <template>
   <div class="about-page">
     <div class="page-overlay"></div>
-    <div class="content-container">
-      <div class="col-left">
-        <h1 class="main-title" v-html="about.title"></h1>
 
-        <div class="separator"></div>
-        <span class="description">{{ about.description }}</span>
-      </div>
+    <article class="canvas">
+      <header class="profile">
+        <h1 class="display" v-html="about.title"></h1>
+        <div class="accent-bar"></div>
+        <p class="lede">{{ about.description }}</p>
+      </header>
 
-      <div class="col-right">
-        <section class="info-block" v-if="about.skills && about.skills.length">
-          <h2 class="block-label">Core expertise</h2>
-          <ul class="skills-list">
-            <li v-for="skill in about.skills" :key="skill">
-              {{ skill }}
-            </li>
-          </ul>
-        </section>
-        <section class="info-block" v-if="about.software && about.software.length">
-          <h2 class="block-label">Software proficiency</h2>
-          <div class="software-grid">
-            <div v-for="(group, index) in about.software" :key="index" class="software-group">
-              <span class="software-category">{{ group.category }}</span>
-              <span class="software-items">{{ group.items.join(', ') }}</span>
-            </div>
-          </div>
-        </section>
-        <section class="info-block">
-          <h2 class="block-label">CONTACTS</h2>
-          <div class="links-stack">
-            <a v-if="about.email" :href="`mailto:${about.email}`" class="text-link">
-              EMAIL <span class="arrow">→</span>
-            </a>
+      <section class="contact">
+        <ol v-if="contactEntries.length" class="ledger">
+          <li v-for="(entry, i) in contactEntries" :key="entry.key" class="row">
+            <span class="row-num">{{ String(i + 1).padStart(2, '0') }}</span>
+            <span class="row-label">{{ entry.label }}</span>
 
-            <a v-if="about.instagram" :href="about.instagram" target="_blank" class="text-link">
-              INSTAGRAM <span class="arrow">→</span>
-            </a>
-            <button
-              v-if="about.discord"
-              @click="clipboard"
-              class="text-link copy-btn"
-              :class="{ success: isCopied }"
+            <a
+              v-if="entry.href"
+              :href="entry.href"
+              :target="entry.newTab ? '_blank' : undefined"
+              :rel="entry.newTab ? 'noopener noreferrer' : undefined"
+              class="row-value"
             >
-              <Transition name="fade-text" mode="out-in">
-                <span v-if="!isCopied" class="btn-content" key="discord">
-                  DISCORD (@{{ about.discord }}) <span class="arrow">→</span>
+              <span class="row-text">{{ entry.value }}</span>
+            </a>
+
+            <button
+              v-else-if="entry.copy"
+              type="button"
+              class="row-value row-copy"
+              :class="{ copied: isCopied }"
+              :aria-label="`Copy Discord username ${entry.value}`"
+              @click="handleDiscordCopy"
+            >
+              <Transition name="copy-fade" mode="out-in">
+                <span v-if="!isCopied" class="row-text" key="default">
+                  {{ entry.value }}
                 </span>
-                <span v-else class="btn-content" key="copied"> COPIED! </span>
+                <span v-else class="row-text" key="copied">COPIED</span>
               </Transition>
             </button>
-          </div>
-        </section>
-      </div>
-      <div class="credits-block">
-        <a href="https://t.me/piratism" target="_blank" class="credits-link">
-          DEVELOPED BY LXNGREN
+          </li>
+        </ol>
+
+        <p v-else class="contact-empty">No channels available right now.</p>
+      </section>
+
+      <!-- COLOPHON -->
+      <footer class="colophon">
+        <span class="colophon-meta">
+          <span>VOL. 01</span>
+          <span class="dot">·</span>
+          <span>ABOUT</span>
+          <span class="dot">·</span>
+          <span>{{ year }}</span>
+        </span>
+        <a
+          href="https://t.me/fuckincash"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="colophon-credit"
+        >
+          DEVELOPED BY LXNGREN <span class="row-arrow" aria-hidden="true">→</span>
         </a>
-      </div>
-    </div>
+      </footer>
+    </article>
   </div>
 </template>
 
@@ -116,241 +169,287 @@ const clipboard = async () => {
   z-index: 0;
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.7) 0%,
-    rgba(0, 0, 0, 0.3) 50%,
-    rgba(0, 0, 0, 0.8) 100%
+    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0, 0.4) 50%,
+    rgba(0, 0, 0, 0.85) 100%
   );
   backdrop-filter: blur(8px);
   pointer-events: none;
 }
 
-.content-container {
+.canvas {
   position: relative;
   z-index: 10;
-  max-width: 1400px;
+  max-width: 1240px;
   margin: 0 auto;
-  min-height: 100vh;
-  padding: 180px 4vw 80px 4vw;
+  padding: 180px 4vw 80px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-content: start;
+  gap: 6rem;
 }
 
-.col-left {
+/* PROFILE */
+.profile {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  min-width: 0;
 }
-.main-title {
+
+.display {
   font-family: 'Archivo Black', sans-serif;
-  font-size: clamp(3rem, 6vw, 6rem);
-  line-height: 0.9;
+  font-size: clamp(3rem, 8vw, 7.25rem);
+  line-height: 0.88;
   color: #ffffff;
   margin: 0;
   text-transform: uppercase;
   transform: scaleX(1.05);
   transform-origin: left;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
-.main-title::first-line {
+.display::first-line {
   color: var(--main-accent);
 }
 
-.separator {
+.accent-bar {
   width: 100px;
   height: 4px;
   background-color: var(--main-accent);
-  margin: 2rem 0;
-}
-.description {
-  font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: 2px;
-  color: #888;
+  margin: 2rem 0 1.75rem;
 }
 
-.col-right {
-  display: flex;
-  flex-direction: column;
-  gap: 4rem;
-  padding-top: 1rem;
-}
-.info-block {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.block-label {
-  font-family: 'Archivo Black', sans-serif;
-  font-size: 1.2rem;
-  color: var(--main-accent);
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.text-body {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: #ddd;
-  max-width: 90%;
-}
-
-.skills-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-.skills-list li {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #fff;
-  border-left: 2px solid #333;
-  padding-left: 10px;
-}
-
-.links-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  align-items: flex-start;
-}
-.text-link {
-  text-decoration: none;
-  color: #fff;
+.lede {
   font-family: 'Inter', sans-serif;
-  font-size: 1rem;
   font-weight: 700;
-  display: inline-flex;
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  line-height: 1.7;
+  color: #9a9a9a;
+  max-width: 60ch;
+  margin: 0;
+}
+
+/* CONTACT — LEDGER */
+.contact {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #1c1c1c;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 64px 180px 1fr;
   align-items: center;
-  gap: 10px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-.text-link:hover {
-  color: var(--main-accent);
-}
-.text-link .arrow {
-  transition: transform 0.2s;
-}
-.text-link:hover .arrow {
-  transform: translateX(5px);
+  gap: 1.5rem;
+  padding: 1.5rem 0.5rem;
+  border-bottom: 1px solid #1c1c1c;
+  transition: padding 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.btn-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+.row:hover {
+  padding-left: 1.25rem;
 }
 
-.btn-content .arrow {
-  margin-left: 10px;
+.row-num {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: #4a4a4a;
+  font-feature-settings: 'tnum' 1;
 }
 
-.copy-btn {
+.row-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: #b4b4b4;
+  text-transform: uppercase;
+}
+
+.row-value {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(1rem, 1.7vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #fff;
+  text-decoration: none;
   background: none;
   border: none;
   padding: 0;
-  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.95rem;
+  justify-self: start;
+  transition: color 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  word-break: break-word;
+  text-align: left;
 }
 
-.copy-btn.success {
+.row-value:hover,
+.row-value:focus-visible {
+  color: var(--main-accent);
+  outline: none;
+}
+
+.row-copy.copied {
   color: var(--main-accent);
 }
 
-.credits-block {
-  grid-column: 1 / -1;
-
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-
-  display: flex;
-  justify-content: center;
-  width: 100%;
+/* COLOPHON ARROW */
+.row-arrow {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: 0.95rem;
+  color: #5a5a5a;
+  transition:
+    color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.credits-link {
+.contact-empty {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #4a4a4a;
+  margin: 0;
+  padding: 1.5rem 0;
+  border-top: 1px solid #1c1c1c;
+  border-bottom: 1px solid #1c1c1c;
+}
+
+/* COLOPHON */
+.colophon {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid #1c1c1c;
   font-family: 'Inter', sans-serif;
   font-size: 0.65rem;
   font-weight: 700;
-  color: #444;
-  text-decoration: none;
-  letter-spacing: 2px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  transition: color 0.3s ease;
+  color: #4a4a4a;
 }
 
-.credits-link:hover {
+.colophon-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.colophon-meta .dot {
+  color: #2a2a2a;
+}
+
+.colophon-credit {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  color: #4a4a4a;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.colophon-credit:hover {
   color: var(--main-accent);
 }
 
-.software-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
+.colophon-credit:hover .row-arrow {
+  color: var(--main-accent);
+  transform: translateX(4px);
 }
 
-.software-group {
-  display: grid;
-  grid-template-columns: 80px 1fr;
-  align-items: baseline;
-  gap: 1rem;
-  font-size: 0.9rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 0.5rem;
+/* COPY TRANSITION */
+.copy-fade-enter-active,
+.copy-fade-leave-active {
+  transition: opacity 0.2s ease;
 }
-
-.software-group:last-child {
-  border-bottom: none;
-}
-
-.software-category {
-  font-weight: 700;
-  color: #888;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-  letter-spacing: 1px;
-}
-
-.software-items {
-  color: #fff;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-@media (max-width: 768px) {
-  .software-group {
-    grid-template-columns: 1fr;
-    gap: 0.2rem;
-  }
-}
-
-.fade-text-enter-active,
-.fade-text-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-text-enter-from,
-.fade-text-leave-to {
+.copy-fade-enter-from,
+.copy-fade-leave-to {
   opacity: 0;
 }
 
+/* RESPONSIVE */
 @media (max-width: 1024px) {
-  .content-container {
-    grid-template-columns: 1fr;
-    gap: 3rem;
-    padding-top: 140px;
+  .canvas {
+    padding: 200px 5vw 80px;
+    gap: 5rem;
   }
-  .main-title {
-    font-size: 3.5rem;
+  .display {
+    font-size: clamp(2.5rem, 9vw, 5rem);
   }
-  .text-body {
-    max-width: 100%;
+  .row {
+    grid-template-columns: 48px 140px 1fr;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .canvas {
+    padding: 220px 5vw 60px;
+    gap: 4rem;
+  }
+  .display {
+    font-size: clamp(2.25rem, 11vw, 3.5rem);
+    transform: none;
+  }
+  .accent-bar {
+    margin: 1.75rem 0 1.5rem;
+  }
+  .lede {
+    font-size: 0.85rem;
+    letter-spacing: 0.14em;
+    line-height: 1.65;
+  }
+  .row {
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 1rem;
+    row-gap: 0.45rem;
+    padding: 1.15rem 0;
+  }
+  .row-num {
+    grid-row: 1;
+    align-self: center;
+  }
+  .row-label {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: center;
+  }
+  .row-value {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    font-size: 1.15rem;
+  }
+  .row:hover {
+    padding-left: 0;
+  }
+  .colophon {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .row-arrow,
+  .row-value,
+  .colophon-credit {
+    transition: none;
   }
 }
 </style>
