@@ -94,8 +94,7 @@ const year = new Date().getFullYear()
 
       <section class="contact">
         <ol v-if="contactEntries.length" class="ledger">
-          <li v-for="(entry, i) in contactEntries" :key="entry.key" class="row">
-            <span class="row-num">{{ String(i + 1).padStart(2, '0') }}</span>
+          <li v-for="entry in contactEntries" :key="entry.key" class="row">
             <span class="row-label">{{ entry.label }}</span>
 
             <a
@@ -246,7 +245,7 @@ const year = new Date().getFullYear()
 
 .row {
   display: grid;
-  grid-template-columns: 64px 180px 1fr;
+  grid-template-columns: 180px 1fr;
   align-items: center;
   gap: 1.5rem;
   padding: 1.5rem 0.5rem;
@@ -256,14 +255,6 @@ const year = new Date().getFullYear()
 
 .row:hover {
   padding-left: 1.25rem;
-}
-
-.row-num {
-  font-family: 'Archivo Black', sans-serif;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  color: #4a4a4a;
-  font-feature-settings: 'tnum' 1;
 }
 
 .row-label {
@@ -391,7 +382,7 @@ const year = new Date().getFullYear()
     font-size: clamp(2.5rem, 9vw, 5rem);
   }
   .row {
-    grid-template-columns: 48px 140px 1fr;
+    grid-template-columns: 140px 1fr;
     gap: 1rem;
   }
 }
@@ -414,24 +405,20 @@ const year = new Date().getFullYear()
     line-height: 1.65;
   }
   .row {
-    grid-template-columns: 36px 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows: auto auto;
-    column-gap: 1rem;
-    row-gap: 0.45rem;
+    column-gap: 0;
+    row-gap: 0.4rem;
     padding: 1.15rem 0;
-  }
-  .row-num {
-    grid-row: 1;
-    align-self: center;
   }
   .row-label {
     grid-row: 1;
-    grid-column: 2;
-    align-self: center;
+    grid-column: 1;
+    justify-self: start;
   }
   .row-value {
     grid-row: 2;
-    grid-column: 1 / -1;
+    grid-column: 1;
     font-size: 1.15rem;
   }
   .row:hover {
