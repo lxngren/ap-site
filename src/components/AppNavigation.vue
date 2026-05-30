@@ -70,30 +70,6 @@ const navigation_links: NavigationLink[] = [
   { id: 'about', text: 'ABOUT', href: '/about', isExternal: false },
 ]
 
-const isNavHidden = ref(false)
-let lastScrollY = 0
-const SCROLL_THRESHOLD = 80
-
-const handleScroll = () => {
-  const currentScrollY = window.scrollY
-
-  if (!window.matchMedia('(max-width: 767px)').matches) {
-    isNavHidden.value = false
-    lastScrollY = currentScrollY
-    return
-  }
-
-  if (currentScrollY < SCROLL_THRESHOLD) {
-    isNavHidden.value = false
-  } else if (currentScrollY > lastScrollY) {
-    isNavHidden.value = true
-  } else if (currentScrollY < lastScrollY) {
-    isNavHidden.value = false
-  }
-
-  lastScrollY = currentScrollY
-}
-
 const elementMap = new Map<string, HTMLElement>()
 const sizes = ref<Map<string, ElementSize>>(new Map())
 
@@ -133,14 +109,12 @@ onMounted(() => {
     initObserver()
   })
   window.addEventListener('resize', updateMetrics)
-  window.addEventListener('scroll', handleScroll, { passive: true })
   document.fonts.ready.then(updateMetrics)
 })
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
   window.removeEventListener('resize', updateMetrics)
-  window.removeEventListener('scroll', handleScroll)
 })
 
 watch(
@@ -167,7 +141,7 @@ const cssVars = computed(() => {
   <header
     v-if="!isAdmin"
     class="app-header"
-    :class="{ 'project-mode': isProjectPage, 'nav-hidden': isNavHidden }"
+    :class="{ 'project-mode': isProjectPage }"
     :style="cssVars"
   >
     <Transition name="fade">
@@ -221,10 +195,7 @@ const cssVars = computed(() => {
   z-index: 100;
   pointer-events: none;
   padding: 2rem 2.5rem;
-  transition:
-    padding 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.4s ease;
+  transition: padding 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   --move-instagram-x: 0px;
   --move-projects-x: 0px;
   --move-projects-y: 0px;
@@ -373,6 +344,27 @@ const cssVars = computed(() => {
 
 /* телефоная адаптация lego */
 @media (max-width: 767px) {
+  /* меню привязано к верху страницы и уезжает вместе с прокруткой */
+  .app-header {
+    position: absolute;
+  }
+
+  /* затемняющая подложка под меню, чтобы текст не сливался с проектами */
+  .app-header::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 8.5rem;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.85) 0%,
+      rgba(0, 0, 0, 0.55) 40%,
+      rgba(0, 0, 0, 0) 100%
+    );
+    pointer-events: none;
+    z-index: -1;
+  }
+
   .project-mode .nav-menu ul li {
     transform: none !important;
     transition: none !important;
@@ -383,11 +375,6 @@ const cssVars = computed(() => {
   }
   .nav-link-wrapper {
     padding: 0 0 0 10px;
-  }
-  .app-header.nav-hidden {
-    transform: translateY(-130%);
-    opacity: 0;
-    pointer-events: none;
   }
 }
 
