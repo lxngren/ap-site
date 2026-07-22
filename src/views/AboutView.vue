@@ -1,82 +1,103 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useProjectsStore } from '@/stores/projects'
+import { EMPTY_ABOUT } from '@/domain/content'
+import { toMailtoUrl, toSafeUrl, type SafeUrl } from '@/domain/url'
+
+const COPY_FEEDBACK_MS = 2000
 
 const store = useProjectsStore()
 const isCopied = ref(false)
+let copyTimer: number | undefined
 
-const about = computed(
-  () =>
-    store.about || {
-      title: 'LOADING...',
-      description: '',
-      email: '',
-      instagram: '',
-      discord: '',
-    },
+const about = computed(() => store.about ?? EMPTY_ABOUT)
+
+const headline = computed(() => (store.isReady ? about.value.title : 'LOADING...'))
+
+const titleLines = computed<readonly string[]>(() =>
+  headline.value
+    .split(/<br\s*\/?>|\r?\n/i)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0),
 )
 
 const instagramHandle = computed(() => {
-  const raw = about.value.instagram?.trim()
+  const raw = about.value.instagram.trim()
   if (!raw) return ''
-  const match = raw.match(/instagram\.com\/([^/?#]+)/i)
-  if (match && match[1]) return '@' + match[1]
-  if (raw.startsWith('@')) return raw
+
+  const match = /instagram\.com\/([^/?#]+)/i.exec(raw)
+  if (match?.[1] !== undefined) return `@${match[1]}`
+
   return raw
 })
 
-type ContactEntry = {
-  key: 'email' | 'instagram' | 'discord'
-  label: string
-  value: string
-  href?: string
-  newTab?: boolean
-  copy?: boolean
-}
+type ContactEntry =
+  | {
+      readonly kind: 'link'
+      readonly key: string
+      readonly label: string
+      readonly value: string
+      readonly href: SafeUrl
+      readonly newTab: boolean
+    }
+  | {
+      readonly kind: 'copy'
+      readonly key: string
+      readonly label: string
+      readonly value: string
+      readonly copyText: string
+    }
 
-const contactEntries = computed<ContactEntry[]>(() => {
-  const list: ContactEntry[] = []
-  if (about.value.email) {
-    list.push({
-      key: 'email',
-      label: 'EMAIL',
-      value: about.value.email,
-      href: `mailto:${about.value.email}`,
-    })
+const contactEntries = computed<readonly ContactEntry[]>(() => {
+  const entries: ContactEntry[] = []
+  const { email, instagram, discord } = about.value
+
+  const mailto = toMailtoUrl(email)
+  if (mailto !== null) {
+    entries.push({ kind: 'link', key: 'email', label: 'EMAIL', value: email, href: mailto, newTab: false })
   }
-  if (about.value.instagram) {
-    list.push({
+
+  const profile = toSafeUrl(instagram)
+  if (profile !== null) {
+    entries.push({
+      kind: 'link',
       key: 'instagram',
       label: 'INSTAGRAM',
       value: instagramHandle.value || 'OPEN PROFILE',
-      href: about.value.instagram,
+      href: profile,
       newTab: true,
     })
   }
-  if (about.value.discord) {
-    list.push({
+
+  if (discord) {
+    entries.push({
+      kind: 'copy',
       key: 'discord',
       label: 'DISCORD',
-      value: '@' + about.value.discord,
-      copy: true,
+      value: `@${discord}`,
+      copyText: discord,
     })
   }
-  return list
+
+  return entries
 })
 
-const handleDiscordCopy = async () => {
-  const login = about.value.discord
-  if (!login) return
+const handleCopy = async (text: string): Promise<void> => {
   try {
-    await navigator.clipboard.writeText(login)
+    await navigator.clipboard.writeText(text)
     isCopied.value = true
-    setTimeout(() => {
+    window.clearTimeout(copyTimer)
+    copyTimer = window.setTimeout(() => {
       isCopied.value = false
-    }, 2000)
-  } catch (e) {
-    console.error('Failed to copy', e)
+    }, COPY_FEEDBACK_MS)
+  } catch (error) {
+    console.error('Failed to copy', error)
   }
 }
+
+onBeforeUnmount(() => {
+  window.clearTimeout(copyTimer)
+})
 
 const year = new Date().getFullYear()
 </script>
@@ -87,8 +108,11 @@ const year = new Date().getFullYear()
 
     <article class="canvas">
       <header class="profile">
-        <h1 class="display" v-html="about.title"></h1>
-        <div class="accent-bar"></div>
+        <h1 class="display">
+          <template v-for="(line, index) in titleLines" :key="index">
+            <br v-if="index > 0" />{{ line }}
+          </template>
+        </h1>
         <p class="lede">{{ about.description }}</p>
       </header>
 
@@ -98,7 +122,7 @@ const year = new Date().getFullYear()
             <span class="row-label">{{ entry.label }}</span>
 
             <a
-              v-if="entry.href"
+              v-if="entry.kind === 'link'"
               :href="entry.href"
               :target="entry.newTab ? '_blank' : undefined"
               :rel="entry.newTab ? 'noopener noreferrer' : undefined"
@@ -108,12 +132,12 @@ const year = new Date().getFullYear()
             </a>
 
             <button
-              v-else-if="entry.copy"
+              v-else
               type="button"
               class="row-value row-copy"
               :class="{ copied: isCopied }"
-              :aria-label="`Copy Discord username ${entry.value}`"
-              @click="handleDiscordCopy"
+              :aria-label="`Copy ${entry.label} username ${entry.value}`"
+              @click="handleCopy(entry.copyText)"
             >
               <Transition name="copy-fade" mode="out-in">
                 <span v-if="!isCopied" class="row-text" key="default">
@@ -128,7 +152,6 @@ const year = new Date().getFullYear()
         <p v-else class="contact-empty">No channels available right now.</p>
       </section>
 
-      <!-- COLOPHON -->
       <footer class="colophon">
         <span class="colophon-meta">
           <span>VOL. 01</span>
@@ -151,8 +174,6 @@ const year = new Date().getFullYear()
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;700&display=swap');
-
 .about-page {
   position: relative;
   min-height: 100vh;
@@ -184,9 +205,10 @@ const year = new Date().getFullYear()
   padding: 180px 4vw 80px;
   display: grid;
   gap: 6rem;
+  min-height: 100vh;
+  grid-template-rows: auto auto 1fr;
 }
 
-/* PROFILE */
 .profile {
   display: flex;
   flex-direction: column;
@@ -211,13 +233,6 @@ const year = new Date().getFullYear()
   color: var(--main-accent);
 }
 
-.accent-bar {
-  width: 100px;
-  height: 4px;
-  background-color: var(--main-accent);
-  margin: 2rem 0 1.75rem;
-}
-
 .lede {
   font-family: 'Inter', sans-serif;
   font-weight: 700;
@@ -226,10 +241,9 @@ const year = new Date().getFullYear()
   line-height: 1.7;
   color: #9a9a9a;
   max-width: 60ch;
-  margin: 0;
+  margin: 3.75rem 0 0;
 }
 
-/* CONTACT — LEDGER */
 .contact {
   display: flex;
   flex-direction: column;
@@ -240,7 +254,6 @@ const year = new Date().getFullYear()
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid #1c1c1c;
 }
 
 .row {
@@ -296,7 +309,6 @@ const year = new Date().getFullYear()
   color: var(--main-accent);
 }
 
-/* COLOPHON ARROW */
 .row-arrow {
   font-family: 'Archivo Black', sans-serif;
   font-size: 0.95rem;
@@ -318,14 +330,12 @@ const year = new Date().getFullYear()
   border-bottom: 1px solid #1c1c1c;
 }
 
-/* COLOPHON */
 .colophon {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 2rem;
-  padding-top: 2.5rem;
-  border-top: 1px solid #1c1c1c;
+  align-self: end;
   font-family: 'Inter', sans-serif;
   font-size: 0.65rem;
   font-weight: 700;
@@ -362,7 +372,6 @@ const year = new Date().getFullYear()
   transform: translateX(4px);
 }
 
-/* COPY TRANSITION */
 .copy-fade-enter-active,
 .copy-fade-leave-active {
   transition: opacity 0.2s ease;
@@ -372,7 +381,6 @@ const year = new Date().getFullYear()
   opacity: 0;
 }
 
-/* RESPONSIVE */
 @media (max-width: 1024px) {
   .canvas {
     padding: 200px 5vw 80px;
@@ -396,13 +404,11 @@ const year = new Date().getFullYear()
     font-size: clamp(2.25rem, 11vw, 3.5rem);
     transform: none;
   }
-  .accent-bar {
-    margin: 1.75rem 0 1.5rem;
-  }
   .lede {
     font-size: 0.85rem;
     letter-spacing: 0.14em;
     line-height: 1.65;
+    margin-top: 3.25rem;
   }
   .row {
     grid-template-columns: 1fr;

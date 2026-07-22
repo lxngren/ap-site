@@ -1,57 +1,53 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useAdminStore } from '@/stores/admin'
 import { useProjectsStore } from '@/stores/projects'
 import { colorService } from '@/services/colorService'
-import type { AboutData, Project } from '@/types'
-import router from '@/router'
+import { DEFAULT_ACCENT } from '@/domain/color'
+import {
+  EMPTY_ABOUT,
+  PROJECT_CATEGORIES,
+  emptyDraft,
+  projectToDraft,
+  type AboutDraft,
+  type Project,
+  type ProjectDraft,
+  type ProjectId,
+} from '@/domain/content'
 
 const store = useAdminStore()
 const projectsStore = useProjectsStore()
+const router = useRouter()
 
 type PanelMode = 'project' | 'about' | null
 const activePanel = ref<PanelMode>(null)
 const isEditing = ref(false)
 const isColorPickerOpen = ref(false)
-const isDirty = ref(false)
 
-const CATEGORIES = ['3D / VFX', 'Motion Graphics', 'Graphic Design']
+const CATEGORIES = PROJECT_CATEGORIES
 
-const DEFAULT_ACCENT = '#a49fdf'
+const formData = ref<ProjectDraft>(emptyDraft())
+const aboutFormData = ref<AboutDraft>({ ...EMPTY_ABOUT })
 
-const initialFormState: Project = {
-  id: 0,
-  title: '',
-  client: '',
-  description: '',
-  category: '3D / VFX',
-  youtubeId: '',
-  thumbnailUrl: '',
-  isFeatured: false,
-}
-const formData = ref<Project>({ ...initialFormState })
-
-const aboutFormData = ref<AboutData>({
-  title: '',
-  description: '',
-  skills: [],
-  software: [],
-  email: '',
-  instagram: '',
-  discord: '',
-})
+const isDirty = computed(() => store.isDirty)
 
 const goToSite = () => router.push('/projects')
 
-const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
+const handleLogout = () => {
+  store.logout()
+  void router.push({ name: 'admin-login' })
+}
+
+const heroProject = computed(() => store.projects.find((project) => project.isFeatured))
 const projectCount = computed(() => store.projects.length)
 
 watch(
   () => heroProject.value?.thumbnailUrl,
   async (newUrl) => {
     if (newUrl) {
-      const color = await colorService.extractDominantColor(newUrl)
+      const color = await colorService.extract(newUrl)
       projectsStore.setHeroAccentColor(color)
     } else {
       projectsStore.setHeroAccentColor(DEFAULT_ACCENT)
@@ -64,9 +60,9 @@ const currentHeroColor = computed(() => projectsStore.heroAccentColor || DEFAULT
 
 const settingsMode = computed({
   get: () => store.globalSettings.accentMode === 'hero',
-  set: (val: boolean) => {
-    store.globalSettings.accentMode = val ? 'hero' : 'custom'
-    isDirty.value = true
+  set: (useHero: boolean) => {
+    store.globalSettings.accentMode = useHero ? 'hero' : 'custom'
+    store.markDirty()
   },
 })
 
@@ -85,14 +81,14 @@ const lockScroll = (locked: boolean) => {
 }
 
 const openNewProject = () => {
-  formData.value = { ...initialFormState }
+  formData.value = emptyDraft()
   isEditing.value = false
   activePanel.value = 'project'
   lockScroll(true)
 }
 
 const openEditProject = (project: Project) => {
-  formData.value = { ...project }
+  formData.value = projectToDraft(project)
   isEditing.value = true
   activePanel.value = 'project'
   lockScroll(true)
@@ -108,7 +104,7 @@ const closePanel = () => {
   activePanel.value = null
   lockScroll(false)
   setTimeout(() => {
-    formData.value = { ...initialFormState }
+    formData.value = emptyDraft()
     isEditing.value = false
   }, 300)
 }
@@ -117,49 +113,49 @@ const handleYoutubeFetch = async () => {
   if (!formData.value.youtubeId) return
 
   const meta = await store.fetchYoutubeMetadata(formData.value.youtubeId)
-  if (!meta) return
+  if (meta === null) {
+    alert('Video not found. Check the URL, the id, or the video privacy settings.')
+    return
+  }
 
   formData.value.thumbnailUrl = meta.thumbnailUrl
   formData.value.youtubeId = meta.id
-  if (meta.title) formData.value.title = meta.title
+  if (meta.title !== null) formData.value.title = meta.title.toUpperCase()
 }
 
 const handleSubmit = () => {
-  if (!formData.value.title || !formData.value.client) {
-    alert('TITLE and CLIENT are required.')
+  const result = isEditing.value
+    ? store.updateProject(formData.value)
+    : store.addProject(formData.value)
+
+  if (!result.ok) {
+    alert(result.message)
     return
   }
-  if (isEditing.value) store.updateProject(formData.value)
-  else store.addProject(formData.value)
-  isDirty.value = true
   closePanel()
 }
 
 const handleAboutSubmit = async () => {
-  // skills и software больше не редактируются из UI, но сохраняем как было —
-  // существующие значения уже скопированы из store.about
   store.updateAbout(aboutFormData.value)
   closePanel()
-  await store.saveChanges()
-  isDirty.value = false
+
+  const result = await store.saveChanges()
+  if (!result.ok) alert(result.message)
 }
 
-const handleRemove = (id: number) => {
+const handleRemove = (id: ProjectId) => {
+  if (!confirm('Delete this project permanently?')) return
   store.removeProject(id)
-  isDirty.value = true
 }
 
 const handleSaveAll = async () => {
-  await store.saveChanges()
-  isDirty.value = false
+  const result = await store.saveChanges()
+  if (!result.ok) alert(result.message)
 }
 
 const draggableProjects = computed({
   get: () => store.projects,
-  set: (val) => {
-    store.updateProjectsOrder(val)
-    isDirty.value = true
-  },
+  set: (order: Project[]) => store.updateProjectsOrder(order),
 })
 
 const saveLabel = computed(() => {
@@ -253,7 +249,7 @@ const formatIndex = (i: number) => String(i + 1).padStart(2, '0')
           <button class="primary-btn" :disabled="store.loading" @click="handleSaveAll">
             {{ saveLabel }}
           </button>
-          <button class="ghost-btn quiet" @click="store.logout">
+          <button class="ghost-btn quiet" @click="handleLogout">
             <svg class="ico" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M9 2 L3 2 L3 14 L9 14" />
               <path d="M7 8 L14 8" />
@@ -521,8 +517,6 @@ const formatIndex = (i: number) => String(i + 1).padStart(2, '0')
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;700&display=swap');
-
 /* TOKENS */
 .dashboard {
   --bg: oklch(0.14 0.005 280);

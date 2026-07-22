@@ -2,37 +2,90 @@
 
 declare global {
   interface Window {
-    onYouTubeIframeAPIReady?: () => void
+    onYouTubeIframeAPIReady?: (() => void) | undefined
   }
+}
+
+const API_SCRIPT_ID = 'youtube-iframe-api'
+const API_SRC = 'https://www.youtube.com/iframe_api'
+const API_LOAD_TIMEOUT_MS = 10_000
+const PLAYER_READY_TIMEOUT_MS = 15_000
+
+let apiReady: Promise<void> | null = null
+
+const loadIframeApi = (): Promise<void> => {
+  if (window.YT?.Player !== undefined) return Promise.resolve()
+
+  apiReady ??= new Promise<void>((resolve, reject) => {
+    const fail = (message: string): void => {
+      window.clearTimeout(timer)
+      apiReady = null
+      reject(new Error(message))
+    }
+
+    const timer = window.setTimeout(
+      () => fail('YouTube IFrame API did not become ready in time'),
+      API_LOAD_TIMEOUT_MS,
+    )
+
+    const previous = window.onYouTubeIframeAPIReady
+    window.onYouTubeIframeAPIReady = (): void => {
+      window.clearTimeout(timer)
+      previous?.()
+      resolve()
+    }
+
+    if (document.getElementById(API_SCRIPT_ID) !== null) return
+
+    const script = document.createElement('script')
+    script.id = API_SCRIPT_ID
+    script.src = API_SRC
+    script.async = true
+    script.onerror = (): void => {
+      script.remove()
+      fail('YouTube IFrame API script could not be fetched')
+    }
+    document.head.append(script)
+  })
+
+  return apiReady
 }
 
 export interface PlayerManagerOptions {
-  autoplay?: boolean
-  mute?: boolean
+  readonly autoplay?: boolean
+  readonly mute?: boolean
 }
 
 export class YoutubePlayerManager {
-  private player: YT.Player | null = null
-  private readonly elementId: string
-  private readonly videoId: string
-  private managerOptions: PlayerManagerOptions
+  #player: YT.Player | null = null
+  #destroyed = false
+
+  readonly #elementId: string
+  readonly #videoId: string
+  readonly #options: PlayerManagerOptions
 
   constructor(elementId: string, videoId: string, options: PlayerManagerOptions = {}) {
-    this.elementId = elementId
-    this.videoId = videoId
-    this.managerOptions = options
+    this.#elementId = elementId
+    this.#videoId = videoId
+    this.#options = options
   }
 
-  public async mount(): Promise<void> {
-    await this.ensureApiLoaded()
+  async mount(): Promise<void> {
+    await loadIframeApi()
+    if (this.#destroyed) return
 
-    return new Promise((resolve) => {
-      this.player = new YT.Player(this.elementId, {
-        videoId: this.videoId,
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(
+        () => reject(new Error('YouTube player did not become ready in time')),
+        PLAYER_READY_TIMEOUT_MS,
+      )
+
+      this.#player = new YT.Player(this.#elementId, {
+        videoId: this.#videoId,
         width: '100%',
         height: '100%',
         playerVars: {
-          autoplay: this.managerOptions.autoplay ? 1 : 0,
+          autoplay: this.#options.autoplay === true ? 1 : 0,
           controls: 1,
           rel: 0,
           playsinline: 1,
@@ -40,59 +93,35 @@ export class YoutubePlayerManager {
         },
         events: {
           onReady: (event) => {
-            if (this.managerOptions.mute) {
-              event.target.mute()
+            window.clearTimeout(timer)
+
+            if (this.#destroyed) {
+              event.target.destroy()
+              this.#player = null
+              resolve()
+              return
             }
 
-            if (this.managerOptions.autoplay) {
-              event.target.playVideo()
-            }
+            if (this.#options.mute === true) event.target.mute()
+            if (this.#options.autoplay === true) event.target.playVideo()
             resolve()
+          },
+          onError: () => {
+            window.clearTimeout(timer)
+            reject(new Error(`YouTube refused to play video ${this.#videoId}`))
           },
         },
       })
     })
   }
 
-  public loadVideo(videoId: string): void {
-    if (this.player && typeof this.player.loadVideoById === 'function') {
-      this.player.loadVideoById(videoId)
-    }
+  loadVideo(videoId: string): void {
+    this.#player?.loadVideoById(videoId)
   }
 
-  public destroy(): void {
-    if (this.player && typeof this.player.destroy === 'function') {
-      this.player.destroy()
-    }
-    this.player = null
-  }
-
-  private ensureApiLoaded(): Promise<void> {
-    return new Promise((resolve) => {
-      if (window.YT && window.YT.Player) {
-        resolve()
-        return
-      }
-
-      const existing_script = document.getElementById('youtube-iframe-api')
-      if (!existing_script) {
-        const tag = document.createElement('script')
-        tag.id = 'youtube-iframe-api'
-        tag.src = 'https://www.youtube.com/iframe_api'
-
-        const first_script_tag = document.getElementsByTagName('script')[0]
-        if (first_script_tag && first_script_tag.parentNode) {
-          first_script_tag.parentNode.insertBefore(tag, first_script_tag)
-        } else {
-          document.head.appendChild(tag)
-        }
-      }
-
-      const previousCallback = window.onYouTubeIframeAPIReady
-      window.onYouTubeIframeAPIReady = () => {
-        if (previousCallback) previousCallback()
-        resolve()
-      }
-    })
+  destroy(): void {
+    this.#destroyed = true
+    this.#player?.destroy()
+    this.#player = null
   }
 }

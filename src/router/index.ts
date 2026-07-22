@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 
 declare module 'vue-router' {
@@ -8,7 +8,7 @@ declare module 'vue-router' {
   }
 }
 
-const routes = [
+const routes: readonly RouteRecordRaw[] = [
   {
     path: '/',
     name: 'home',
@@ -46,28 +46,17 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes,
-  scrollBehavior(to, from, savedPosition) {
-    if (savedPosition) return savedPosition
-    return { top: 0, behavior: 'smooth' }
-  },
+  routes: [...routes],
+  scrollBehavior: (_to, _from, savedPosition) =>
+    savedPosition ?? { top: 0, behavior: 'smooth' },
 })
 
-router.beforeEach(async (to: RouteLocationNormalized) => {
-  const store = useAdminStore()
-  const shouldCheckSession = !store.isAuthenticated && (to.meta.requiresAuth || to.meta.guestOnly)
-  if (shouldCheckSession) {
-    await store.checkSession()
-  }
+router.beforeEach((to) => {
+  const admin = useAdminStore()
 
-  if (to.meta.requiresAuth && !store.isAuthenticated) {
-    return { name: 'admin-login' }
-  }
-
-  if (to.meta.guestOnly && store.isAuthenticated) {
-    return { name: 'admin-dashboard' }
-  }
-  return
+  if (to.meta.requiresAuth && !admin.isAuthenticated) return { name: 'admin-login' }
+  if (to.meta.guestOnly && admin.isAuthenticated) return { name: 'admin-dashboard' }
+  return true
 })
 
 export default router

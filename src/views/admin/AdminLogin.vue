@@ -135,8 +135,6 @@ const year = new Date().getFullYear()
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;700&display=swap');
-
 .gate {
   --bg: oklch(0.14 0.005 280);
   --surface-0: oklch(0.17 0.006 280);

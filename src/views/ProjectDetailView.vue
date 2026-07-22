@@ -3,55 +3,42 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 
-import { useYoutube } from '@/composables/useYoutube.ts'
 import YouTubePlayer from '@/components/YouTubePlayer.vue'
 import { colorService } from '@/services/colorService'
+import { useThumbnail } from '@/composables/useThumbnail'
+import { DEFAULT_ACCENT, type HexColor } from '@/domain/color'
+import { toProjectId } from '@/domain/content'
+import { thumbnailUrl, watchUrl } from '@/domain/youtube'
 
 const route = useRoute()
 const store = useProjectsStore()
+const thumbnail = useThumbnail()
 
-const accentColor = ref('#a49fdf')
-const projectId = computed(() => Number(route.params.id))
-const project = computed(() => store.getProjectById(projectId.value))
+const accentColor = ref<HexColor>(DEFAULT_ACCENT)
 
-const youtubeId = computed(() => project.value?.youtubeId)
-const { data: videoData } = useYoutube(youtubeId)
+const projectId = computed(() => toProjectId(Number(route.params.id)))
+const project = computed(() =>
+  projectId.value === null ? null : store.getProjectById(projectId.value),
+)
 
-const background_source = computed(() => {
-  if (!project.value) return ''
-  if (videoData.value?.thumbnail_maxres_url) {
-    return videoData.value.thumbnail_maxres_url
-  }
-  return project.value.thumbnailUrl
+const isMissing = computed(() => store.isReady && project.value === null)
+
+const backgroundSource = computed(() => {
+  const current = project.value
+  if (current === null) return ''
+  if (current.thumbnailUrl) return current.thumbnailUrl
+  return current.youtubeId === null ? '' : thumbnailUrl(current.youtubeId, 'maxres')
 })
 
-const downgradeYtThumbnail = (img: HTMLImageElement): boolean => {
-  if (img.src.includes('maxresdefault')) {
-    img.src = img.src.replace('maxresdefault', 'hqdefault')
-    return true
-  }
-  if (img.src.includes('hqdefault')) {
-    img.src = img.src.replace('hqdefault', 'mqdefault')
-    return true
-  }
-  return false
-}
-
-const handleBgError = (event: Event): void => {
-  downgradeYtThumbnail(event.target as HTMLImageElement)
-}
-
-const handleBgLoad = (event: Event): void => {
-  const img = event.target as HTMLImageElement
-  if (img.naturalWidth <= 120 && img.naturalHeight <= 90) {
-    downgradeYtThumbnail(img)
-  }
-}
+const youtubeLink = computed(() => {
+  const id = project.value?.youtubeId
+  return id === null || id === undefined ? null : watchUrl(id)
+})
 
 watch(
-  background_source,
-  async (newUrl) => {
-    const color = newUrl ? await colorService.extractDominantColor(newUrl) : '#a49fdf'
+  backgroundSource,
+  async (source) => {
+    const color = source ? await colorService.extract(source) : DEFAULT_ACCENT
     accentColor.value = color
     store.setAccentColor(color)
   },
@@ -64,13 +51,13 @@ watch(
     <div class="bg-wrapper">
       <transition name="fade-slow">
         <img
-          v-if="background_source"
-          :key="background_source"
-          :src="background_source"
+          v-if="backgroundSource"
+          :key="backgroundSource"
+          :src="backgroundSource"
           alt=""
           class="bg-image-hd"
-          @load="handleBgLoad"
-          @error="handleBgError"
+          @load="thumbnail.onLoad"
+          @error="thumbnail.onError"
         />
       </transition>
       <div class="bg-overlay"></div>
@@ -86,9 +73,10 @@ watch(
 
         <div class="meta-footer">
           <a
-            v-if="project.youtubeId"
-            :href="`https://www.youtube.com/watch?v=${project.youtubeId}`"
+            v-if="youtubeLink"
+            :href="youtubeLink"
             target="_blank"
+            rel="noopener noreferrer"
             class="video-link"
           >
             Watch on YouTube <span class="arrow">→</span>
@@ -103,11 +91,16 @@ watch(
       </div>
     </div>
   </div>
+
+  <div v-else-if="isMissing" class="project-missing">
+    <p class="missing-text">This project is no longer available.</p>
+    <RouterLink to="/projects" class="missing-link">
+      Back to projects <span class="arrow">→</span>
+    </RouterLink>
+  </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;700&display=swap');
-
 .project-detail-page {
   position: fixed;
   inset: 0;
@@ -227,8 +220,41 @@ watch(
   justify-content: center;
 }
 
+.project-missing {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 200px 4rem 4rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.missing-text {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+}
+
+.missing-link {
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.missing-link:hover {
+  color: var(--main-accent);
+}
+
 .player-wrapper {
   width: 100%;
+  max-width: calc((100vh - 12rem) * 16 / 9);
   aspect-ratio: 16 / 9;
   background: #000;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -276,6 +302,7 @@ watch(
 
   .player-wrapper {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    max-width: none;
   }
 
   .project-title {

@@ -3,107 +3,70 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectsStore } from '@/stores/projects'
 import { colorService } from '@/services/colorService'
+import { useThumbnail } from '@/composables/useThumbnail'
+import { DEFAULT_ACCENT, type HexColor } from '@/domain/color'
+import { PROJECT_CATEGORIES, type ProjectCategory, type ProjectId } from '@/domain/content'
 
-const FADE_DELAY_MS = 800
-const IMAGE_FADE_DELAY_MS = 100
-const DEFAULT_ACCENT = '#a49fdf'
+const ALL_FILTER = 'All'
+type Filter = typeof ALL_FILTER | ProjectCategory
 
 const store = useProjectsStore()
 const router = useRouter()
 
-const hasInitialData = store.projects.length > 0
-const isPageLoading = ref<boolean>(!hasInitialData)
+const filters: readonly Filter[] = [ALL_FILTER, ...PROJECT_CATEGORIES]
+const activeFilter = ref<Filter>(ALL_FILTER)
 
-const loadedImageIds = ref<Set<number>>(new Set())
-const isHeroImageLoaded = ref<boolean>(false)
+const heroThumbnail = useThumbnail()
+const cardThumbnail = useThumbnail()
 
-const accentColor = ref<string>(store.heroAccentColor || DEFAULT_ACCENT)
-const projectColors = ref<Record<number, string>>({})
-const activeFilter = ref<string>('All')
-
-const filters = ['All', '3D / VFX', 'Motion Graphics', 'Graphic Design'] as const
+const loadedImageIds = ref<ReadonlySet<ProjectId>>(new Set())
+const isHeroImageLoaded = ref(false)
+const projectColors = ref<ReadonlyMap<ProjectId, HexColor>>(new Map())
 
 const projects = computed(() => store.projects)
-const heroProject = computed(() => store.projects.find((p) => p.isFeatured))
+const heroProject = computed(() => store.featuredProject)
+const accentColor = computed(() => store.heroAccentColor)
 
-const filteredProjects = computed(() => {
-  const list = projects.value
-  if (activeFilter.value === 'All') return list
-  return list.filter((p) => p.category === activeFilter.value)
-})
+const isPageLoading = computed(() => store.status === 'idle' || store.status === 'loading')
+const loadFailed = computed(() => store.status === 'error')
 
-const goToProject = (id: number): void => {
-  router.push({ name: 'project-detail', params: { id } })
-}
+const filteredProjects = computed(() =>
+  activeFilter.value === ALL_FILTER
+    ? projects.value
+    : projects.value.filter((project) => project.category === activeFilter.value),
+)
 
-const downgradeYtThumbnail = (img: HTMLImageElement): boolean => {
-  if (img.src.includes('maxresdefault')) {
-    img.src = img.src.replace('maxresdefault', 'hqdefault')
-    return true
-  }
-  if (img.src.includes('hqdefault')) {
-    img.src = img.src.replace('hqdefault', 'mqdefault')
-    return true
-  }
-  return false
-}
-
-const isYtPlaceholder = (img: HTMLImageElement): boolean => {
-  return img.naturalWidth <= 120 && img.naturalHeight <= 90
-}
-
-const handleImageLoad = (event: Event, id: number): void => {
-  const img = event.target as HTMLImageElement
-  if (isYtPlaceholder(img) && downgradeYtThumbnail(img)) return
-
-  setTimeout(() => {
-    loadedImageIds.value.add(id)
-  }, IMAGE_FADE_DELAY_MS)
+const goToProject = (id: ProjectId): void => {
+  void router.push({ name: 'project-detail', params: { id: String(id) } })
 }
 
 const handleHeroLoad = (event: Event): void => {
-  const img = event.target as HTMLImageElement
-  if (isYtPlaceholder(img) && downgradeYtThumbnail(img)) return
-  isHeroImageLoaded.value = true
+  if (heroThumbnail.onLoad(event)) isHeroImageLoaded.value = true
 }
 
-const handleThumbnailError = (event: Event): void => {
-  downgradeYtThumbnail(event.target as HTMLImageElement)
+const handleCardLoad = (event: Event, id: ProjectId): void => {
+  if (cardThumbnail.onLoad(event)) {
+    loadedImageIds.value = new Set(loadedImageIds.value).add(id)
+  }
 }
 
 watch(
   () => store.heroAccentColor,
-  (newColor) => {
-    if (newColor) {
-      accentColor.value = newColor
-      store.setAccentColor(newColor)
-    }
-  },
+  (color) => store.setAccentColor(color),
   { immediate: true },
 )
 
 watch(
   projects,
   async (list) => {
-    if (list.length === 0) {
-      await store.init()
-    }
-
-    if (isPageLoading.value) {
-      setTimeout(() => {
-        isPageLoading.value = false
-      }, FADE_DELAY_MS)
-    }
-
     for (const project of list) {
-      if (project.thumbnailUrl && !projectColors.value[project.id]) {
-        projectColors.value[project.id] = await colorService.extractDominantColor(
-          project.thumbnailUrl,
-        )
-      }
+      if (!project.thumbnailUrl || projectColors.value.has(project.id)) continue
+
+      const color = await colorService.extract(project.thumbnailUrl)
+      projectColors.value = new Map(projectColors.value).set(project.id, color)
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 </script>
 
@@ -125,6 +88,10 @@ watch(
       </div>
     </transition>
 
+    <p v-if="loadFailed" class="load-error" role="alert">
+      Could not load the portfolio right now. Please try again later.
+    </p>
+
     <div class="content-wrapper" :class="{ 'content-visible': !isPageLoading }">
       <div class="hero-background" v-if="heroProject">
         <div class="bg-image-wrapper" :class="{ 'img-loaded': isHeroImageLoaded }">
@@ -132,7 +99,7 @@ watch(
             :src="heroProject.thumbnailUrl"
             alt="Hero Background"
             @load="handleHeroLoad"
-            @error="handleThumbnailError"
+            @error="heroThumbnail.onError"
           />
         </div>
         <div class="hero-overlay"></div>
@@ -178,15 +145,15 @@ watch(
               v-for="project in filteredProjects"
               :key="project.id"
               @click="goToProject(project.id)"
-              :style="{ '--item-accent': projectColors[project.id] || DEFAULT_ACCENT }"
+              :style="{ '--item-accent': projectColors.get(project.id) ?? DEFAULT_ACCENT }"
             >
               <div class="card-image-box" :class="{ loaded: loadedImageIds.has(project.id) }">
                 <img
                   :src="project.thumbnailUrl"
                   :alt="project.title"
                   loading="lazy"
-                  @load="handleImageLoad($event, project.id)"
-                  @error="handleThumbnailError"
+                  @load="handleCardLoad($event, project.id)"
+                  @error="cardThumbnail.onError"
                 />
                 <div class="card-overlay"></div>
               </div>
@@ -204,7 +171,6 @@ watch(
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;700&display=swap');
 .page-wrapper {
   position: relative;
   min-height: 100vh;
@@ -236,7 +202,19 @@ watch(
   opacity: 1;
 }
 
-/* Transition: Fade Out Skeleton */
+.load-error {
+  position: relative;
+  z-index: 60;
+  margin: 0;
+  padding: 180px 4vw 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+}
+
 .fade-leave-active {
   transition: opacity 0.8s ease;
 }
@@ -244,7 +222,6 @@ watch(
   opacity: 0;
 }
 
-/* Transition: Slide Up Hero Text */
 .slide-up-enter-active {
   transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -376,7 +353,6 @@ watch(
   display: flex;
   gap: 2rem;
   margin-bottom: 3rem;
-  border-bottom: 1px solid #222;
   padding-bottom: 1rem;
 }
 

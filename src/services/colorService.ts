@@ -1,110 +1,75 @@
-import ColorThief from 'colorthief'
+import { getColor } from 'colorthief'
+import { DEFAULT_ACCENT, toAccent, type HexColor } from '@/domain/color'
 
-const DEFAULT_COLOR = '#a49fdf'
+const EXTRACTION_TIMEOUT_MS = 8_000
 
-// Saturation (0.0 - 1.0): меньше = грязнее/серее
-const SAT_MIN = 0.3
-const SAT_MAX = 0.5
+const loadImage = (src: string, signal: AbortSignal): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
 
-// lightness (0.0 - 1.0): больше = светлее (фон)
-const LIGHT_MIN = 0.75
-const LIGHT_MAX = 0.85
+    const onAbort = (): void => {
+      cleanup()
+      image.src = ''
+      reject(signal.reason instanceof Error ? signal.reason : new Error('Image load aborted'))
+    }
 
-class ColorService {
-  private cache = new Map<string, string>()
-  private colorThief = new ColorThief()
+    const cleanup = (): void => {
+      image.onload = null
+      image.onerror = null
+      signal.removeEventListener('abort', onAbort)
+    }
 
-  public async extractDominantColor(imageUrl: string): Promise<string> {
-    if (this.cache.has(imageUrl)) return this.cache.get(imageUrl)!
+    image.onload = (): void => {
+      cleanup()
+      resolve(image)
+    }
+    image.onerror = (): void => {
+      cleanup()
+      reject(new Error(`Failed to load image: ${src}`))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    image.src = src
+  })
+
+class AccentPalette {
+  readonly #cache = new Map<string, HexColor>()
+  readonly #inFlight = new Map<string, Promise<HexColor>>()
+
+  async extract(imageUrl: string): Promise<HexColor> {
+    if (!imageUrl) return DEFAULT_ACCENT
+
+    const cached = this.#cache.get(imageUrl)
+    if (cached !== undefined) return cached
+
+    const pending = this.#inFlight.get(imageUrl)
+    if (pending !== undefined) return pending
+
+    const request = this.#extract(imageUrl).finally(() => {
+      this.#inFlight.delete(imageUrl)
+    })
+    this.#inFlight.set(imageUrl, request)
+
+    return request
+  }
+
+  async #extract(imageUrl: string): Promise<HexColor> {
+    const signal = AbortSignal.timeout(EXTRACTION_TIMEOUT_MS)
 
     try {
-      const img = await this.loadImage(imageUrl)
+      const image = await loadImage(imageUrl, signal)
+      const color = await getColor(image, { signal })
+      if (color === null) return DEFAULT_ACCENT
 
-      const [r, g, b] = this.colorThief.getColor(img)
-      const [h, s, l] = this.rgbToHsl(r, g, b)
-
-      const mutedS = Math.max(SAT_MIN, Math.min(s, SAT_MAX))
-      const brightL = Math.max(LIGHT_MIN, Math.min(l, LIGHT_MAX))
-
-      const [finalR, finalG, finalB] = this.hslToRgb(h, mutedS, brightL)
-      const hex = this.rgbToHex(finalR, finalG, finalB)
-
-      this.cache.set(imageUrl, hex)
-      return hex
+      const accent = toAccent(color.hsl())
+      this.#cache.set(imageUrl, accent)
+      return accent
     } catch (error) {
-      console.warn('Color extraction failed', error)
-      return DEFAULT_COLOR
+      console.warn('[colorService] extraction failed for', imageUrl, error)
+      return DEFAULT_ACCENT
     }
-  }
-
-  private loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.crossOrigin = 'Anonymous'
-      img.src = src
-      img.onload = () => resolve(img)
-      img.onerror = reject
-    })
-  }
-
-  private rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-    r /= 255
-    g /= 255
-    b /= 255
-    const max = Math.max(r, g, b),
-      min = Math.min(r, g, b)
-    let h = 0,
-      s = 0
-    const l = (max + min) / 2
-
-    if (max !== min) {
-      const d = max - min
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-      switch (max) {
-        case r:
-          h = (g - b) / d + (g < b ? 6 : 0)
-          break
-        case g:
-          h = (b - r) / d + 2
-          break
-        case b:
-          h = (r - g) / d + 4
-          break
-      }
-      h /= 6
-    }
-    return [h, s, l]
-  }
-
-  private hslToRgb(h: number, s: number, l: number): [number, number, number] {
-    let r, g, b
-    if (s === 0) {
-      r = g = b = l
-    } else {
-      const hue2rgb = (p: number, q: number, t: number) => {
-        if (t < 0) t += 1
-        if (t > 1) t -= 1
-        if (t < 1 / 6) return p + (q - p) * 6 * t
-        if (t < 1 / 2) return q
-        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
-        return p
-      }
-      const q = l < 0.5 ? l * (1 + s) : l + s - l * s
-      const p = 2 * l - q
-      r = hue2rgb(p, q, h + 1 / 3)
-      g = hue2rgb(p, q, h)
-      b = hue2rgb(p, q, h - 1 / 3)
-    }
-    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
-  }
-
-  private rgbToHex(r: number, g: number, b: number): string {
-    const toHex = (c: number) => {
-      const hex = c.toString(16)
-      return hex.length === 1 ? '0' + hex : hex
-    }
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`
   }
 }
 
-export const colorService = new ColorService()
+export const colorService = new AccentPalette()

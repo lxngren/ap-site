@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { YoutubePlayerManager } from '@/core/YouTubePlayerManager'
 
 const props = defineProps<{
@@ -8,34 +8,42 @@ const props = defineProps<{
   muted?: boolean
 }>()
 
-const containerId = `yt-player-${Math.random().toString(36).substring(2, 9)}`
-let playerManager: YoutubePlayerManager | null = null
+const containerId = `yt-player-${useId()}`
+
+const failed = ref(false)
+let manager: YoutubePlayerManager | null = null
 
 onMounted(async () => {
-  playerManager = new YoutubePlayerManager(containerId, props.videoId, {
-    autoplay: props.autoplay,
-    mute: props.muted,
+  manager = new YoutubePlayerManager(containerId, props.videoId, {
+    autoplay: props.autoplay === true,
+    mute: props.muted === true,
   })
 
-  await playerManager.mount()
+  try {
+    await manager.mount()
+  } catch (error) {
+    console.error('[YouTubePlayer] mount failed', error)
+    failed.value = true
+  }
 })
 
 onBeforeUnmount(() => {
-  playerManager?.destroy()
-  playerManager = null
+  manager?.destroy()
+  manager = null
 })
 
 watch(
   () => props.videoId,
-  (newId) => {
-    if (newId) playerManager?.loadVideo(newId)
+  (next) => {
+    if (next) manager?.loadVideo(next)
   },
 )
 </script>
 
 <template>
   <div class="youtube-container">
-    <div :id="containerId" class="player-placeholder"></div>
+    <div v-show="!failed" :id="containerId" class="player-placeholder"></div>
+    <p v-if="failed" class="player-error">Player unavailable. Use the link below to watch.</p>
   </div>
 </template>
 
@@ -47,8 +55,24 @@ watch(
   position: relative;
   overflow: hidden;
 }
+
 .player-placeholder {
   width: 100%;
   height: 100%;
+}
+
+.player-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6a6a6a;
 }
 </style>

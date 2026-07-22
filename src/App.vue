@@ -8,12 +8,15 @@ import desktopVideo from '@/assets/video/desktop.mp4'
 import mobileVideo from '@/assets/video/mobile.mp4'
 
 const route = useRoute()
-const VIDEO_ROUTES = ['home', 'about']
+const VIDEO_ROUTES: readonly string[] = ['home', 'about']
 
-const MOBILE_BREAKPOINT = 768
-const isMobile = ref(false)
+const mobileQuery = window.matchMedia('(max-width: 768px)')
+const isMobile = ref(mobileQuery.matches)
+
 const bgVideoRef = ref<HTMLVideoElement | null>(null)
 const projectsStore = useProjectsStore()
+
+void projectsStore.init()
 
 const isVideoLoaded = ref(false)
 
@@ -21,17 +24,15 @@ const handleVideoLoad = () => {
   isVideoLoaded.value = true
 }
 
-const updateMediaType = () => {
-  isMobile.value = window.innerWidth <= MOBILE_BREAKPOINT
+const handleMediaChange = (event: MediaQueryListEvent): void => {
+  isMobile.value = event.matches
 }
 
-const currentVideoSrc = computed(() => {
-  return isMobile.value ? mobileVideo : desktopVideo
-})
+const currentVideoSrc = computed(() => (isMobile.value ? mobileVideo : desktopVideo))
 
-const shouldShowVideo = computed(() => {
-  return route.name && VIDEO_ROUTES.includes(route.name as string)
-})
+const shouldShowVideo = computed(
+  () => typeof route.name === 'string' && VIDEO_ROUTES.includes(route.name),
+)
 
 let pauseTimeout: number | undefined
 
@@ -70,13 +71,12 @@ watch(currentVideoSrc, () => {
 })
 
 onMounted(() => {
-  projectsStore.init()
-  updateMediaType()
-  window.addEventListener('resize', updateMediaType)
+  mobileQuery.addEventListener('change', handleMediaChange)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateMediaType)
+  clearTimeout(pauseTimeout)
+  mobileQuery.removeEventListener('change', handleMediaChange)
 })
 </script>
 
@@ -136,7 +136,6 @@ body {
   contain: strict;
 }
 
-/* --- LOADER STYLES --- */
 .video-loader {
   position: absolute;
   inset: 0;

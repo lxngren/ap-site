@@ -1,91 +1,123 @@
-import { ref } from 'vue'
-import type { AppConfig } from '@/types'
+import { parseAppConfig, type AppConfig } from '@/domain/content'
+
+const API_BASE = 'https://api.github.com'
+const CONFIG_FILE = 'projects-config.json'
+const REQUEST_TIMEOUT_MS = 10_000
+
+const PUBLIC_HEADERS: Readonly<Record<string, string>> = {
+  Accept: 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2022-11-28',
+}
+
+export class GistError extends Error {
+  readonly status: number | undefined
+
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'GistError'
+    this.status = status
+  }
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+
+const readConfigFile = (payload: unknown): string => {
+  const files = asRecord(asRecord(payload)?.files)
+  const content = asRecord(files?.[CONFIG_FILE])?.content
+
+  if (typeof content !== 'string') {
+    throw new GistError(`Gist does not contain a readable "${CONFIG_FILE}"`)
+  }
+  return content
+}
 
 class GistService {
-  private apiBase = 'https://api.github.com'
-  private gistId = import.meta.env.VITE_GIST_ID
-  private fileName = 'projects-config.json'
+  #token: string | null = null
+  readonly #gistId: string
 
-  private token = ref<string | null>(null)
+  constructor(gistId: string) {
+    this.#gistId = gistId
+  }
 
-  setToken(token: string | null) {
-    this.token.value = token
+  get isAuthenticated(): boolean {
+    return this.#token !== null
+  }
+
+  setToken(token: string | null): void {
+    this.#token = token
   }
 
   async verifyPermissions(token: string): Promise<boolean> {
     try {
-      const userResponse = await fetch(`${this.apiBase}/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      })
+      const [user, gist] = await Promise.all([
+        this.#request(`${API_BASE}/user`, { token }),
+        this.#request(`${API_BASE}/gists/${this.#gistId}`),
+      ])
 
-      if (!userResponse.ok) return false
-      const userData = await userResponse.json()
+      const userId = asRecord(user)?.id
+      const ownerId = asRecord(asRecord(gist)?.owner)?.id
 
-      const gistResponse = await fetch(`${this.apiBase}/gists/${this.gistId}`)
-      if (!gistResponse.ok) return false
-      const gistData = await gistResponse.json()
-
-      return userData.id === gistData.owner.id
+      return typeof userId === 'number' && userId === ownerId
     } catch (error) {
-      console.error('Permission check failed:', error)
+      console.error('[gist] permission check failed', error)
       return false
     }
   }
 
   async fetchConfig(): Promise<AppConfig> {
-    const url = `${this.apiBase}/gists/${this.gistId}`
-    const headers: HeadersInit = { Accept: 'application/vnd.github.v3+json' }
+    const payload = await this.#request(`${API_BASE}/gists/${this.#gistId}`)
+    const raw = readConfigFile(payload)
 
-    if (this.token.value) {
-      headers['Authorization'] = `Bearer ${this.token.value}`
-    }
-
+    let parsed: unknown
     try {
-      const response = await fetch(url, { headers })
-      if (!response.ok) throw new Error(`Gist Error: ${response.status}`)
-
-      const data = await response.json()
-      const file = data.files[this.fileName]
-
-      if (!file) throw new Error('Config file not found in Gist')
-
-      return (JSON.parse(file.content) || { projects: [] }) as AppConfig
+      parsed = JSON.parse(raw)
     } catch (error) {
-      console.error('Failed to fetch Gist configuration', error)
-      throw error
+      throw new GistError(`Config document is not valid JSON: ${String(error)}`)
     }
+
+    return parseAppConfig(parsed)
   }
 
-  async updateConfig(newConfig: AppConfig) {
-    if (!this.token.value) throw new Error('Unauthorized: Admin Token Required')
+  async updateConfig(config: AppConfig): Promise<void> {
+    if (this.#token === null) {
+      throw new GistError('Unauthorized: admin token required')
+    }
 
-    const url = `${this.apiBase}/gists/${this.gistId}`
-    const body = {
-      files: {
-        [this.fileName]: {
-          content: JSON.stringify(newConfig, null, 2),
-        },
+    await this.#request(`${API_BASE}/gists/${this.#gistId}`, {
+      token: this.#token,
+      method: 'PATCH',
+      body: {
+        files: { [CONFIG_FILE]: { content: JSON.stringify(config, null, 2) } },
       },
+    })
+  }
+
+  async #request(
+    url: string,
+    options: { token?: string; method?: string; body?: unknown } = {},
+  ): Promise<unknown> {
+    const headers: Record<string, string> = { ...PUBLIC_HEADERS }
+    if (options.token !== undefined) {
+      headers['Authorization'] = `Bearer ${options.token}`
+    }
+    if (options.body !== undefined) {
+      headers['Content-Type'] = 'application/json'
     }
 
     const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-        Authorization: `Bearer ${this.token.value}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+      method: options.method ?? 'GET',
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
     })
 
     if (!response.ok) {
-      throw new Error('Failed to save. Check token permissions (gist scope required).')
+      throw new GistError(`GitHub request failed (${response.status})`, response.status)
     }
-    return await response.json()
+
+    return response.json()
   }
 }
 
-export const gistService = new GistService()
+export const gistService = new GistService(import.meta.env.VITE_GIST_ID)
